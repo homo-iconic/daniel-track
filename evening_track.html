@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Daniel – 8:15 PM onward</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  body { margin:0; font-family:system-ui; background:#111; color:#eee; }
+  #map { height: 70vh; }
+  #controls { padding: 12px; background:#1a1a1a; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  button, input { padding:6px 10px; border-radius:6px; border:1px solid #444; background:#222; color:#eee; }
+  #info { padding: 8px 12px; font-size:14px; }
+</style>
+</head>
+<body>
+<div id="controls">
+  <button id="play">Play</button>
+  <button id="pause">Pause</button>
+  <label>Speed: <input type="range" id="speed" min="0.25" max="8" step="0.25" value="1"> <span id="speedval">1x</span></label>
+  <span id="info">Loading…</span>
+</div>
+<div id="map"></div>
+
+<script>
+const map = L.map('map').setView([34.10, -118.35], 16);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '© OpenStreetMap'
+}).addTo(map);
+
+let points = [];
+let poly, marker, timer, idx = 0, playing = false;
+
+fetch('track_points.json')
+  .then(r => r.json())
+  .then(data => {
+    points = data;
+    if (!points.length) { document.getElementById('info').textContent = 'No points'; return; }
+    const latlngs = points.map(p => [p[0], p[1]]);
+    poly = L.polyline(latlngs, {color:'#6cb6ff', weight:3}).addTo(map);
+    marker = L.circleMarker(latlngs[0], {radius:7, color:'#ff6b6b', fillOpacity:1}).addTo(map);
+    map.fitBounds(poly.getBounds().pad(0.1));
+    document.getElementById('info').textContent = `${points.length} points · ${points[0][2].slice(11,19)} → ${points[points.length-1][2].slice(11,19)}`;
+  });
+
+function step() {
+  if (!playing || idx >= points.length) return;
+  const p = points[idx];
+  marker.setLatLng([p[0], p[1]]);
+  map.panTo([p[0], p[1]], {animate:false});
+  document.getElementById('info').textContent = `${idx+1}/${points.length} · ${p[2].slice(11,19)}`;
+  idx++;
+  if (idx < points.length) {
+    const delay = 400 / parseFloat(document.getElementById('speed').value);
+    timer = setTimeout(step, delay);
+  } else {
+    playing = false;
+  }
+}
+
+document.getElementById('play').onclick = () => {
+  if (playing) return;
+  playing = true;
+  if (idx >= points.length) idx = 0;
+  step();
+};
+document.getElementById('pause').onclick = () => {
+  playing = false;
+  clearTimeout(timer);
+};
+document.getElementById('speed').oninput = e => {
+  document.getElementById('speedval').textContent = e.target.value + 'x';
+};
+</script>
+</body>
+</html>
