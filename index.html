@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Daniel Alerts</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+ . :root {
+ . . . --bg:#0f1115; --card:#1a1d24; --border:#2a2e38; --text:#e8eaed;
+ . . . --muted:#9aa0a6; --accent:#6cb6ff; --alert:#ff6b6b; --ok:#69db7c;
+ . }
+ . * { box-sizing:border-box; }
+ . body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; background:var(--bg); color:var(--text); margin:0; padding:1.25rem; }
+ . #login { max-width:340px; margin:18vh auto; text-align:center; background:var(--card); padding:2rem; border-radius:12px; border:1px solid var(--border); }
+ . input, button { padding:0.55rem 0.9rem; font-size:1rem; border-radius:8px; border:1px solid var(--border); background:#22262e; color:var(--text); }
+ . button { cursor:pointer; background:#2c333d; } button:hover { background:#363d48; }
+ . #app { display:none; max-width:960px; margin:0 auto; }
+ . h2 { font-weight:600; margin:1.75rem 0 0.75rem; font-size:1.15rem; }
+ . .status-bar, .latest, .group {
+ . . . background:var(--card); border:1px solid var(--border); border-radius:10px; padding:0.9rem 1.1rem; margin:0.6rem 0;
+ . }
+ . .latest { border-left:4px solid var(--accent); }
+ . .group { border-left:4px solid var(--alert); }
+ . .group-header { cursor:pointer; }
+ . .group-details { display:none; margin-top:0.6rem; font-size:0.9rem; }
+ . .group.open .group-details { display:block; }
+ . .group-details li { margin:0.35rem 0; display:flex; justify-content:space-between; align-items:center; }
+ . .live { color:var(--ok); font-weight:500; }
+ . a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+ . #map { height:480px; border-radius:10px; margin-top:0.5rem; border:1px solid var(--border); }
+ . .muted { color:var(--muted); font-size:0.85rem; }
+ . .playback { margin:0.5rem 0; display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; }
+ . .playback input[type=range] { width:120px; }
+</style>
+</head>
+<body>
+<div id="login">
+ . <h2>Daniel Alerts</h2>
+ . <input type="password" id="pw" placeholder="password" autofocus>
+ . <br><br>
+ . <button onclick="check()">Enter</button>
+</div>
+
+<div id="app">
+ . <div class="status-bar">
+ . . . <div><span class="live">● Live</span> <span class="muted" id="updated">Last run: —</span></div>
+ . . . <div class="muted">Checks log every 15s</div>
+ . </div>
+
+ . <h2>Current Location</h2>
+ . <div class="latest" id="latest">Waiting for data…</div>
+
+ . <h2>Activity</h2>
+ . <div id="activity"><div class="muted">No events yet.</div></div>
+
+ . <h2>Track</h2>
+ . <div class="playback" id="playback" style="display:none;">
+ . . . <button id="playBtn">Play segment</button>
+ . . . <label>Speed: <input type="range" id="speed" min="1" max="20" value="5"></label>
+ . . . <span id="playInfo" class="muted"></span>
+ . </div>
+ . <div id="map"></div>
+</div>
+
+<script>
+const PASS = "BustedBetch77";
+const LOG_URL = "master.jsonl";
+const POLL_MS = 15000;
+
+let map, trackLayer, marker, playMarker;
+let lastRunTs = null;
+let groups = [];
+let playing = false;
+let playTimer = null;
+let playIndex = 0;
+let currentSegment = null;
+
+const EMOJI = { walking:"🚶", driving:"🚗", spoof:"⚠️", no_location:"❌", moved:"📍", stationary:"" };
+
+function check() {
+ . if (document.getElementById("pw").value === PASS) {
+ . . . document.getElementById("login").style.display = "none";
+ . . . document.getElementById("app").style.display = "block";
+ . . . initMap();
+ . . . load();
+ . . . setInterval(load, POLL_MS);
+ . . . setInterval(updateAgo, 1000);
+ . . . document.getElementById("playBtn").onclick = togglePlay;
+ . } else alert("Wrong password");
+}
+
+function initMap() {
+ . map = L.map("map").setView([34.1018, -118.3465], 16);
+ . L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+ . . . attribution: "© OpenStreetMap",
+ . . . maxZoom: 19
+ . }).addTo(map);
+ . trackLayer = L.layerGroup().addTo(map);
+}
+
+function focusPoint(lat, lon, zoom=18) {
+ . map.setView([lat, lon], zoom);
+ . if (playMarker) map.removeLayer(playMarker);
+ . playMarker = L.circleMarker([lat, lon], { radius:10, color:"#ff6b6b", fillOpacity:1, weight:2 }).addTo(map);
+}
+
+function updateAgo() {
+ . const el = document.getElementById("updated");
+ . if (!lastRunTs) { el.textContent = "Last run: —"; return; }
+ . const sec = Math.round((Date.now() - lastRunTs) / 1000);
+ . el.textContent = sec < 90 ? `Last run: ${sec}s ago` : `Last run: ${new Date(lastRunTs).toLocaleTimeString()}`;
+}
+
+function fmtTime(iso) {
+ . if (!iso) return "";
+ . const d = new Date(iso);
+ . return isNaN(d) ? iso : d.toLocaleString(undefined, { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" });
+}
+
+async function load() {
+ . try {
+ . . . const r = await fetch(LOG_URL + "?t=" + Date.now());
+ . . . if (!r.ok) throw new Error(r.status);
+ . . . const text = await r.text();
+ . . . const entries = text.trim().split("\n").filter(Boolean).map(l => {
+ . . . . . try { return JSON.parse(l); } catch { return null; }
+ . . . }).filter(Boolean);
+
+ . . . const valid = entries.filter(e => e.lat != null && e.lon != null);
+ . . . if (!valid.length) return;
+
+ . . . const newest = valid[valid.length - 1];
+ . . . if (newest.ts) {
+ . . . . . const p = Date.parse(newest.ts);
+ . . . . . if (!isNaN(p)) lastRunTs = p;
+ . . . }
+
+ . . . const lat = Number(newest.lat), lon = Number(newest.lon);
+ . . . const maps = `https://www.google.com/maps?q=${lat},${lon}`;
+ . . . const emo = EMOJI[newest.event] || "";
+ . . . document.getElementById("latest").innerHTML =
+ . . . . . `<strong>${fmtTime(newest.ts)}</strong><br>` +
+ . . . . . `${emo} ${lat.toFixed(5)}, ${lon.toFixed(5)}` +
+ . . . . . (newest.accuracy != null ? ` · acc ${Number(newest.accuracy).toFixed(0)} m` : "") +
+ . . . . . `<br><a href="${maps}" target="_blank">Open in Google Maps</a> · <button onclick="focusPoint(${lat},${lon})">Focus map</button>`;
+
+ . . . // Group consecutive same event
+ . . . groups = [];
+ . . . let current = null;
+ . . . for (const e of valid) {
+ . . . . . const key = e.event || "update";
+ . . . . . if (!current || current.key !== key) {
+ . . . . . . . current = { key, emoji: EMOJI[key] || "", entries: [e] };
+ . . . . . . . groups.push(current);
+ . . . . . } else {
+ . . . . . . . current.entries.push(e);
+ . . . . . }
+ . . . }
+ . . . groups.reverse();
+ . . . renderActivity();
+
+ . . . // Full track
+ . . . trackLayer.clearLayers();
+ . . . const pts = valid.slice(-300).map(e => [Number(e.lat), Number(e.lon)]);
+ . . . if (pts.length) {
+ . . . . . L.polyline(pts, { color:"#6cb6ff", weight:3, opacity:0.7 }).addTo(trackLayer);
+ . . . . . if (marker) map.removeLayer(marker);
+ . . . . . marker = L.circleMarker(pts[pts.length-1], { radius:7, color:"#69db7c", fillOpacity:0.9 }).addTo(trackLayer);
+ . . . }
+ . } catch (e) {
+ . . . document.getElementById("latest").textContent = "Could not load log: " + e.message;
+ . }
+}
+
+function renderActivity() {
+ . const div = document.getElementById("activity");
+ . if (!groups.length) { div.innerHTML = `<div class="muted">No events yet.</div>`; return; }
+ . div.innerHTML = groups.slice(0, 40).map((g, gi) => {
+ . . . const first = g.entries[0];
+ . . . const last = g.entries[g.entries.length-1];
+ . . . const label = `${g.emoji} Daniel ${g.key.replace("_"," ")}`.trim();
+ . . . const timeRange = g.entries.length > 1
+ . . . . . ? `${fmtTime(first.ts)} – ${fmtTime(last.ts)}`
+ . . . . . : fmtTime(last.ts);
+ . . . const bullets = g.entries.slice().reverse().map((e, ei) => {
+ . . . . . const m = `https://www.google.com/maps?q=${e.lat},${e.lon}`;
+ . . . . . return `<li>
+ . . . . . . . <span>${fmtTime(e.ts)} — ${Number(e.dist_m||0).toFixed(0)} m</span>
+ . . . . . . . <span>
+ . . . . . . . . . <a href="${m}" target="_blank">Google</a>
+ . . . . . . . . . <button onclick="event.stopPropagation(); focusPoint(${e.lat},${e.lon})">Focus</button>
+ . . . . . . . </span>
+ . . . . . </li>`;
+ . . . }).join("");
+ . . . return `<div class="group" id="g${gi}">
+ . . . . . <div class="group-header" onclick="this.parentElement.classList.toggle('open')">
+ . . . . . . . <strong>${label}</strong> <span class="muted">${timeRange} · ${g.entries.length} pts</span>
+ . . . . . . . <button onclick="event.stopPropagation(); playSegment(${gi})">Play this segment</button>
+ . . . . . </div>
+ . . . . . <div class="group-details"><ul>${bullets}</ul></div>
+ . . . </div>`;
+ . }).join("");
+}
+
+function playSegment(gi) {
+ . currentSegment = groups[gi].entries.slice().reverse(); // chronological
+ . playIndex = 0;
+ . document.getElementById("playback").style.display = "flex";
+ . document.getElementById("playBtn").textContent = "Pause";
+ . playing = true;
+ . stepPlay();
+}
+
+function togglePlay() {
+ . playing = !playing;
+ . document.getElementById("playBtn").textContent = playing ? "Pause" : "Play";
+ . if (playing && currentSegment) stepPlay();
+ . else if (playTimer) clearTimeout(playTimer);
+}
+
+function stepPlay() {
+ . if (!playing || !currentSegment || playIndex >= currentSegment.length) {
+ . . . playing = false;
+ . . . document.getElementById("playBtn").textContent = "Play";
+ . . . document.getElementById("playInfo").textContent = "Finished";
+ . . . return;
+ . }
+ . const e = currentSegment[playIndex];
+ . focusPoint(Number(e.lat), Number(e.lon), 18);
+
+ . // Stats
+ . let stoppedSec = 0;
+ . let totalDist = 0;
+ . let totalTime = 0;
+ . for (let i = 1; i <= playIndex; i++) {
+ . . . const prev = currentSegment[i-1];
+ . . . const curr = currentSegment[i];
+ . . . const dt = (Date.parse(curr.ts) - Date.parse(prev.ts)) / 1000;
+ . . . const dist = curr.dist_m || 0;
+ . . . totalDist += dist;
+ . . . totalTime += dt;
+ . . . if ((curr.speed_mps || 0) < 0.4) stoppedSec += dt;
+ . }
+ . const mph = totalTime > 0 ? (totalDist / totalTime) * 2.23694 : 0;
+ . document.getElementById("playInfo").textContent =
+ . . . `~${mph.toFixed(1)} mph avg · stopped ${Math.round(stoppedSec)}s`;
+
+ . playIndex++;
+ . const speed = Number(document.getElementById("speed").value);
+ . playTimer = setTimeout(stepPlay, 800 / speed);
+}
+</script>
+</body>
+</html>
