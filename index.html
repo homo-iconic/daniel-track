@@ -51,15 +51,41 @@ select, button, input { padding:6px 10px; border-radius:6px; border:1px solid #4
 <div id="speedline"></div>
 <div id="map"></div>
 </div>
-<div id="footer">Daniel Track v1.4.6</div>
+<div id="footer">Daniel Track v1.4.8</div>
 <script>
 const PASS = "BustedBetch77";
-// Paste your Mapbox PUBLIC token (starts with "pk.") between the quotes. If left blank, satellite falls back to Esri.
-const MAPBOX_TOKEN = "pk.eyJ1IjoienR1Y2tlcjM2IiwiYSI6ImNtdjhybDE0aTAwNm8yd29ua3Axanhsa2sifQ.LcAvR6ZLRUzrYZeKCwpD2g";
-const SAT_TILES = MAPBOX_TOKEN.startsWith("pk.")
-  ? ["https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.jpg90?access_token=" + MAPBOX_TOKEN]
-  : ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"];
-const SAT_ATTR = MAPBOX_TOKEN.startsWith("pk.") ? "&copy; Mapbox &copy; Maxar" : "Esri, Maxar, Earthstar Geographics";
+// Satellite source: "google" | "lacounty" | "mapbox" | "esri"
+const SAT_SOURCE = "google";
+const GOOGLE_KEY = "AIzaSyCI7R5Jg7S92ZIS1SZr4eOE21UqgAfO7pI";   // paste your Google Maps API key here (restrict it to your site + Map Tiles API in Google Cloud)
+const MAPBOX_TOKEN = ""; // only if SAT_SOURCE = "mapbox"
+const SATS = {
+  google:   { tiles: null, max: 21, attr: "Imagery &copy; Google" },   // tiles filled in by resolveSat() once a session exists
+  lacounty: { tiles: ["https://cache.gis.lacounty.gov/cache/rest/services/LACounty_Cache/LACounty_Aerial_2014/MapServer/tile/{z}/{y}/{x}"], max: 20, attr: "LA County, LARIAC4 (2014)" },
+  mapbox:   { tiles: ["https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.jpg90?access_token=" + MAPBOX_TOKEN], max: 19, attr: "&copy; Mapbox &copy; Maxar" },
+  esri:     { tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"], max: 19, attr: "Esri, Maxar, Earthstar Geographics" }
+};
+let SAT_NAME = SAT_SOURCE, SAT = SATS[SAT_SOURCE] || SATS.esri;
+const VERSION = "v1.4.8";
+function setFooter(extra) { document.getElementById("footer").textContent = "Daniel Track " + VERSION + (extra ? " \u00b7 " + extra : ""); }
+async function resolveSat() {
+  if (SAT_SOURCE === "google") {
+    try {
+      if (!GOOGLE_KEY) throw new Error("no GOOGLE_KEY set");
+      const r = await fetch("https://tile.googleapis.com/v1/createSession?key=" + GOOGLE_KEY, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mapType: "satellite", language: "en-US", region: "US" })
+      });
+      const j = await r.json();
+      if (!j.session) throw new Error((j.error && j.error.message) || "no session returned");
+      SATS.google.tiles = ["https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=" + j.session + "&key=" + GOOGLE_KEY];
+      SAT_NAME = "google";
+    } catch (err) {
+      console.warn("Google satellite unavailable, using Esri:", err);
+      SAT = SATS.esri; SAT_NAME = "esri (google failed: " + err.message + ")";
+    }
+  }
+  setFooter("sat: " + SAT_NAME);
+}
 function check(e) {
   e.preventDefault();
   if (document.getElementById("pw").value === PASS) {
@@ -83,7 +109,8 @@ function applyBase() {
   map.setLayoutProperty('sat', 'visibility', isSat ? 'visible' : 'none');
   map.setLayoutProperty('street', 'visibility', isSat ? 'none' : 'visible');
 }
-function initMap() {
+async function initMap() {
+  await resolveSat();
   map = new maplibregl.Map({
     container: 'map',
     style: {
@@ -91,7 +118,7 @@ function initMap() {
       sources: {
         // maxzoom 19 = real Esri tiles stop here; MapLibre scales them up beyond it (no grey "no data" tiles)
         streets: { type:'raster', tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'], tileSize:256, maxzoom:19, attribution:'Esri' },
-        sat: { type:'raster', tiles:SAT_TILES, tileSize:256, maxzoom:19, attribution:SAT_ATTR }
+        sat: { type:'raster', tiles:SAT.tiles, tileSize:256, maxzoom:SAT.max, attribution:SAT.attr }
       },
       layers: [
         { id:'street', type:'raster', source:'streets' },
@@ -146,6 +173,7 @@ function update() {
   document.getElementById('speedline').textContent=st;
 }
 function centerOn(i, smooth) {
+  if (!map || !marker) return;
   const p = currentPts[i];
   marker.setLngLat([p[1], p[0]]);
   if (smooth) map.easeTo({ center:[p[1],p[0]], pitch:0, bearing:0, duration:300, easing:t=>t });
