@@ -51,12 +51,12 @@ select, button, input { padding:6px 10px; border-radius:6px; border:1px solid #4
 <div id="speedline"></div>
 <div id="map"></div>
 </div>
-<div id="footer">Daniel Track v1.4.8</div>
+<div id="footer">Daniel Track v1.4.9</div>
 <script>
 const PASS = "BustedBetch77";
 // Satellite source: "google" | "lacounty" | "mapbox" | "esri"
 const SAT_SOURCE = "lacounty";
-const GOOGLE_KEY = "AQ.Ab8RN6Kk-0-YUlHJHrSMegY7eZH98sEFbmHxWb6W4xAh6ulEQQ";   // paste your Google Maps API key here (restrict it to your site + Map Tiles API in Google Cloud)
+const GOOGLE_KEY = "";   // paste your Google Maps API key here (restrict it to your site + Map Tiles API in Google Cloud)
 const MAPBOX_TOKEN = ""; // only if SAT_SOURCE = "mapbox"
 const SATS = {
   google:   { tiles: null, max: 21, attr: "Imagery &copy; Google" },   // tiles filled in by resolveSat() once a session exists
@@ -65,26 +65,44 @@ const SATS = {
   esri:     { tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"], max: 19, attr: "Esri, Maxar, Earthstar Geographics" }
 };
 let SAT_NAME = SAT_SOURCE, SAT = SATS[SAT_SOURCE] || SATS.esri;
-const VERSION = "v1.4.8";
+const VERSION = "v1.4.9";
 function setFooter(extra) { document.getElementById("footer").textContent = "Daniel Track " + VERSION + (extra ? " \u00b7 " + extra : ""); }
-async function resolveSat() {
-  if (SAT_SOURCE === "google") {
-    try {
-      if (!GOOGLE_KEY) throw new Error("no GOOGLE_KEY set");
-      const r = await fetch("https://tile.googleapis.com/v1/createSession?key=" + GOOGLE_KEY, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mapType: "satellite", language: "en-US", region: "US" })
-      });
-      const j = await r.json();
-      if (!j.session) throw new Error((j.error && j.error.message) || "no session returned");
-      SATS.google.tiles = ["https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=" + j.session + "&key=" + GOOGLE_KEY];
-      SAT_NAME = "google";
-    } catch (err) {
-      console.warn("Google satellite unavailable, using Esri:", err);
-      SAT = SATS.esri; SAT_NAME = "esri (google failed: " + err.message + ")";
-    }
+function tileUrl(tpl, lat, lon, z) {
+  const n = 2 ** z, r = lat * Math.PI / 180;
+  const x = Math.floor((lon + 180) / 360 * n);
+  const y = Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n);
+  return tpl.replace("{z}", z).replace("{x}", x).replace("{y}", y);
+}
+// Loads one real tile the same way the map will; throws with a readable reason if it can't.
+async function probe(tpl) {
+  const r = await fetch(tileUrl(tpl, allPoints[0][0], allPoints[0][1], 17));
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const b = await r.blob();
+  if (!b.type.startsWith("image/") || b.size < 200) throw new Error("not an image (" + b.type + ", " + b.size + " bytes)");
+}
+async function prepare(name) {
+  if (name === "google") {
+    if (!GOOGLE_KEY) throw new Error("no GOOGLE_KEY set");
+    const r = await fetch("https://tile.googleapis.com/v1/createSession?key=" + GOOGLE_KEY, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mapType: "satellite", language: "en-US", region: "US" })
+    });
+    const j = await r.json();
+    if (!j.session) throw new Error((j.error && j.error.message) || "no session returned");
+    SATS.google.tiles = ["https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=" + j.session + "&key=" + GOOGLE_KEY];
   }
-  setFooter("sat: " + SAT_NAME);
+  if (name === "mapbox" && !MAPBOX_TOKEN) throw new Error("no MAPBOX_TOKEN set");
+  await probe(SATS[name].tiles[0]);
+}
+async function resolveSat() {
+  const order = [SAT_SOURCE, "lacounty", "mapbox", "esri"].filter((n, i, a) => SATS[n] && a.indexOf(n) === i);
+  const failed = []; let ok = false;
+  for (const name of order) {
+    try { await prepare(name); SAT = SATS[name]; SAT_NAME = name; ok = true; break; }
+    catch (err) { console.warn("sat source failed:", name, err); failed.push(name + ": " + err.message); }
+  }
+  if (!ok) { SAT = SATS.esri; SAT_NAME = "esri (nothing could be verified)"; }
+  setFooter("sat: " + SAT_NAME + (failed.length ? " | failed \u2192 " + failed.join("; ") : ""));
 }
 function check(e) {
   e.preventDefault();
@@ -131,6 +149,8 @@ async function initMap() {
     pitch: 0, bearing: 0, maxPitch: 0, minPitch: 0,
     dragRotate: false, pitchWithRotate: false, touchPitch: false
   });
+  let tileErrShown = false;
+  map.on('error', e => { if (!tileErrShown && e && e.sourceId === 'sat') { tileErrShown = true; setFooter('sat: ' + SAT_NAME + ' | tile error: ' + ((e.error && e.error.message) || 'unknown')); } });
   map.on('load', () => { applyBase(); load(allPoints); });
   marker = new maplibregl.Marker({color:'#ff6b6b'}).setLngLat([allPoints[0][1], allPoints[0][0]]).addTo(map);
   const sel = document.getElementById('seg');
