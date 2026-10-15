@@ -51,9 +51,15 @@ select, button, input { padding:6px 10px; border-radius:6px; border:1px solid #4
 <div id="speedline"></div>
 <div id="map"></div>
 </div>
-<div id="footer">Daniel Track v1.4.5</div>
+<div id="footer">Daniel Track v1.4.6</div>
 <script>
 const PASS = "BustedBetch77";
+// Paste your Mapbox PUBLIC token (starts with "pk.") between the quotes. If left blank, satellite falls back to Esri.
+const MAPBOX_TOKEN = "pk.eyJ1IjoienR1Y2tlcjM2IiwiYSI6ImNtdjhybDE0aTAwNm8yd29ua3Axanhsa2sifQ.LcAvR6ZLRUzrYZeKCwpD2g";
+const SAT_TILES = MAPBOX_TOKEN.startsWith("pk.")
+  ? ["https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.jpg90?access_token=" + MAPBOX_TOKEN]
+  : ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"];
+const SAT_ATTR = MAPBOX_TOKEN.startsWith("pk.") ? "&copy; Mapbox &copy; Maxar" : "Esri, Maxar, Earthstar Geographics";
 function check(e) {
   e.preventDefault();
   if (document.getElementById("pw").value === PASS) {
@@ -85,7 +91,7 @@ function initMap() {
       sources: {
         // maxzoom 19 = real Esri tiles stop here; MapLibre scales them up beyond it (no grey "no data" tiles)
         streets: { type:'raster', tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'], tileSize:256, maxzoom:19, attribution:'Esri' },
-        sat: { type:'raster', tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize:256, maxzoom:19, attribution:'Esri, Maxar, Earthstar Geographics' }
+        sat: { type:'raster', tiles:SAT_TILES, tileSize:256, maxzoom:19, attribution:SAT_ATTR }
       },
       layers: [
         { id:'street', type:'raster', source:'streets' },
