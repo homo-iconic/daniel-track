@@ -158,21 +158,28 @@ def main():
         json.dump(clips, f, indent=2)
     print(f"Wrote {OUT}")
 
-    # Also write every usable point as a single “all” clip for the SHOW ALL toggle
+    # Also write one clip per day for the SHOW ALL toggle
     if points:
-        all_clip = {
-            "start": points[0]["ts"].isoformat(),
-            "end": points[-1]["ts"].isoformat(),
-            "duration_sec": (points[-1]["ts"] - points[0]["ts"]).total_seconds(),
-            "distance_m": 0,
-            "avg_mph": 0,
-            "max_mph": 0,
-            "home_related": False,
-            "points": [[p["lat"], p["lon"], p["ts"].isoformat()] for p in points]
-        }
+        from collections import defaultdict
+        by_day = defaultdict(list)
+        for pt in points:
+            by_day[pt["ts"].date().isoformat()].append(pt)
+        all_clips = []
+        for day in sorted(by_day):
+            day_pts = by_day[day]
+            all_clips.append({
+                "start": day_pts[0]["ts"].isoformat(),
+                "end": day_pts[-1]["ts"].isoformat(),
+                "duration_sec": (day_pts[-1]["ts"] - day_pts[0]["ts"]).total_seconds(),
+                "distance_m": 0,
+                "avg_mph": 0,
+                "max_mph": 0,
+                "home_related": False,
+                "points": [[pt["lat"], pt["lon"], pt["ts"].isoformat()] for pt in day_pts]
+            })
         with (Path.home() / "track" / "all_points.json").open("w") as f:
-            json.dump([all_clip], f)
-        print("Wrote all_points.json")
+            json.dump(all_clips, f)
+        print(f"Wrote all_points.json ({len(all_clips)} days)")
 
 if __name__ == "__main__":
     main()
