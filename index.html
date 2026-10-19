@@ -90,7 +90,7 @@ let clips = [];
 
 async function loadClips() {
   try {
-    const r = await fetch("clips.json");
+    const r = await fetch("clips.json?t=" + Date.now());
     if (!r.ok) throw new Error("no clips.json");
     clips = await r.json();
   } catch (e) {
