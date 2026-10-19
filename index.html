@@ -68,6 +68,7 @@ button { cursor:pointer; }
         <button id="play">Play</button>
         <button id="pause">Pause</button>
         <button id="lastping">Last ping</button>
+        <button id="showall">SHOW ALL</button>
         <label>Speed: <input type="range" id="speed" min="0.25" max="8" step="0.25" value="1"> <span id="speedval">1x</span></label>
         <label><input type="checkbox" id="sat"> Satellite</label>
         <label><input type="checkbox" id="realtime"> Real time</label>
@@ -255,6 +256,22 @@ document.getElementById("lastping").onclick = () => {
     .addTo(map)
     .togglePopup();
   map.easeTo({center: [p[1], p[0]], zoom: 17});
+};
+
+let showAll = false;
+document.getElementById("showall").onclick = async () => {
+  showAll = !showAll;
+  document.getElementById("showall").textContent = showAll ? "SHOW CLIPS" : "SHOW ALL";
+  const url = showAll ? "all_points.json?t=" + Date.now() : "clips.json?t=" + Date.now();
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error("missing");
+    clips = await r.json();
+    renderList();
+    if (clips.length) selectClip(0);
+  } catch (e) {
+    document.getElementById("cliplist").innerHTML = "<div style='padding:12px;color:#aaa'>No data for this view.</div>";
+  }
 };
 
 if (localStorage.getItem("dt_auth") === "ok") show();

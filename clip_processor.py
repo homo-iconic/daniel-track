@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """
 clip_processor.py — segment master.jsonl into motion clips.
-
 Lowest-practical thresholds:
 - Ignore points with accuracy > 30 m
 - Require sustained movement: ≥ 10 m over at least 2 consecutive intervals
   (or a short rolling window) before starting a clip.
 - End clip after 40 s of sub-threshold movement.
 - Tag home-related clips.
-
 Output: clips.json (list of clip objects)
 """
 import json
@@ -94,7 +92,6 @@ def build_clips(points):
         for k in range(start_idx + 1, n):
             dist = haversine_m(points[k-1]["lat"], points[k-1]["lon"],
                                points[k]["lat"], points[k]["lon"])
-            dt = (points[k]["ts"] - points[k-1]["ts"]).total_seconds()
             if dist >= MIN_MOVE_M * 0.5:
                 last_move_time = points[k]["ts"]
                 end_idx = k
@@ -135,6 +132,21 @@ def build_clips(points):
             "points": [[p["lat"], p["lon"], p["ts"].isoformat()] for p in path]
         })
         i = end_idx + 1
+
+    # Always include the most recent point as a heartbeat clip if it is newer
+    if points:
+        last = points[-1]
+        if not clips or clips[-1]["end"] < last["ts"].isoformat():
+            clips.append({
+                "start": last["ts"].isoformat(),
+                "end": last["ts"].isoformat(),
+                "duration_sec": 0,
+                "distance_m": 0,
+                "avg_mph": 0,
+                "max_mph": 0,
+                "home_related": last["home"],
+                "points": [[last["lat"], last["lon"], last["ts"].isoformat()]]
+            })
     return clips
 
 def main():
@@ -145,6 +157,22 @@ def main():
     with OUT.open("w") as f:
         json.dump(clips, f, indent=2)
     print(f"Wrote {OUT}")
+
+    # Also write every usable point as a single “all” clip for the SHOW ALL toggle
+    if points:
+        all_clip = {
+            "start": points[0]["ts"].isoformat(),
+            "end": points[-1]["ts"].isoformat(),
+            "duration_sec": (points[-1]["ts"] - points[0]["ts"]).total_seconds(),
+            "distance_m": 0,
+            "avg_mph": 0,
+            "max_mph": 0,
+            "home_related": False,
+            "points": [[p["lat"], p["lon"], p["ts"].isoformat()] for p in points]
+        }
+        with (Path.home() / "track" / "all_points.json").open("w") as f:
+            json.dump([all_clip], f)
+        print("Wrote all_points.json")
 
 if __name__ == "__main__":
     main()
