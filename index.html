@@ -1,51 +1,50 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <meta charset="utf-8">
-<title>Daniel Track</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+<title>Daniel Track</title>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet"/>
 <style>
-html, body { height:100%; margin:0; font-family:system-ui; background:#111; color:#eee; }
-#login { position:fixed; inset:0; background:#111; display:flex; align-items:center; justify-content:center; z-index:9999; }
-#login form { background:#1a1a1a; padding:2rem; border-radius:12px; text-align:center; }
-input, button, select { padding:8px 12px; border-radius:6px; border:1px solid #444; background:#222; color:#eee; }
+:root { --bg:#0d0d0d; --panel:#161616; --border:#2a2a2a; --text:#eee; --muted:#888; --accent:#3b82f6; }
+html, body { height:100%; margin:0; font-family:system-ui, sans-serif; background:var(--bg); color:var(--text); }
+#login { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:9999; }
+#login form { background:var(--panel); padding:2rem; border-radius:12px; text-align:center; }
+input, button, select { padding:8px 12px; border-radius:6px; border:1px solid #444; background:#222; color:var(--text); font-size:14px; }
 button { cursor:pointer; }
-#lastping { color: #111; background: #e5e5e5; }
-#app { display:none; flex-direction:column; height:100vh; height:100dvh; box-sizing:border-box; }
+button:hover { background:#333; }
+#app { display:none; flex-direction:column; height:100vh; height:100dvh; }
+#header { display:flex; align-items:center; gap:12px; padding:10px 14px; background:var(--panel); border-bottom:1px solid var(--border); flex-wrap:wrap; }
+#header h1 { margin:0; font-size:16px; font-weight:600; }
 #main { display:flex; flex:1; min-height:0; }
-#sidebar { width:320px; background:#1a1a1a; overflow-y:auto; border-right:1px solid #333; }
-#sidebar h3 { margin:12px; font-size:16px; }
-.clip { padding:10px 12px; border-bottom:1px solid #333; cursor:pointer; }
-.clip:hover, .clip.active { background:#2a2a2a; }
-.clip .time { font-weight:600; }
-.clip .meta { font-size:12px; color:#aaa; margin-top:2px; }
+#sidebar { width:340px; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; }
+#sidebar-tools { padding:10px; border-bottom:1px solid var(--border); display:flex; gap:8px; }
+#sidebar-tools input { flex:1; }
+#cliplist { flex:1; overflow-y:auto; }
+.day-header { padding:8px 12px; font-size:12px; font-weight:600; color:var(--muted); background:#111; position:sticky; top:0; }
+.clip { padding:10px 12px; border-bottom:1px solid #222; cursor:pointer; }
+.clip:hover, .clip.active { background:#222; }
+.clip .time { font-weight:600; font-size:14px; }
+.clip .meta { font-size:12px; color:var(--muted); margin-top:2px; }
 .clip.home { border-left:3px solid #4ade80; }
 #map-wrap { flex:1; display:flex; flex-direction:column; min-width:0; }
-#controls { padding:8px 12px; background:#1a1a1a; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+#controls { padding:8px 12px; background:var(--panel); display:flex; gap:8px; align-items:center; flex-wrap:wrap; border-bottom:1px solid var(--border); }
 #map { flex:1; min-height:200px; }
-#subtitle, #speedline { text-align:center; padding:4px; background:#1a1a1a; font-size:14px; }
-#speedline { color:#aaa; }
-#footer { height:28px; line-height:28px; text-align:center; font-size:12px; background:#111; border-top:1px solid #333; }
+#info-bar { padding:6px 12px; background:var(--panel); font-size:13px; color:var(--muted); border-top:1px solid var(--border); }
 @media (max-width:700px) {
-  #sidebar { width:100%; max-height:40vh; }
+  #sidebar { width:100%; max-height:45vh; border-right:none; border-bottom:1px solid var(--border); }
   #main { flex-direction:column; }
+  #header { padding:8px; }
 }
 @keyframes ping {
   0% { box-shadow: 0 0 0 0 rgba(59,130,246,0.7); }
   70% { box-shadow: 0 0 0 12px rgba(59,130,246,0); }
   100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
 }
-.maplibregl-popup-content {
-  color: #111;
-  background: #fff;
-}
-.maplibregl-popup-close-button {
-  color: #111;
-}
+.maplibregl-popup-content { color:#111; background:#fff; }
+.maplibregl-popup-close-button { color:#111; }
 </style>
 </head>
 <body>
@@ -58,9 +57,16 @@ button { cursor:pointer; }
   </form>
 </div>
 <div id="app">
+  <div id="header">
+    <h1>Daniel Track</h1>
+    <span id="status" style="font-size:13px;color:#888"></span>
+  </div>
   <div id="main">
     <div id="sidebar">
-      <h3>Motion Clips</h3>
+      <div id="sidebar-tools">
+        <input type="search" id="filter" placeholder="Filter by date or text…">
+        <button id="showall">SHOW ALL</button>
+      </div>
       <div id="cliplist"></div>
     </div>
     <div id="map-wrap">
@@ -68,24 +74,17 @@ button { cursor:pointer; }
         <button id="play">Play</button>
         <button id="pause">Pause</button>
         <button id="lastping">Last ping</button>
-        <button id="showall">SHOW ALL</button>
-        <label>Speed: <input type="range" id="speed" min="0.25" max="8" step="0.25" value="1"> <span id="speedval">1x</span></label>
+        <label>Speed <input type="range" id="speed" min="0.25" max="8" step="0.25" value="1"> <span id="speedval">1x</span></label>
         <label><input type="checkbox" id="sat"> Satellite</label>
         <label><input type="checkbox" id="realtime"> Real time</label>
-        <span id="info"></span>
       </div>
-      <input type="range" id="timeline" min="0" max="100" value="0" style="width:100%">
-      <div id="subtitle"></div>
-      <div id="speedline"></div>
       <div id="map"></div>
+      <div id="info-bar"></div>
     </div>
   </div>
-  <div id="footer">Daniel Track v2.0</div>
 </div>
 <script>
 const PASS = "BustedBetch77";
-const VERSION = "v2.0";
-function setFooter(extra) { document.getElementById("footer").textContent = "Daniel Track " + VERSION + (extra ? " · " + extra : ""); }
 function check(e) {
   e.preventDefault();
   if (document.getElementById("pw").value === PASS) {
@@ -99,41 +98,62 @@ function show() {
   document.getElementById("app").style.display = "flex";
   loadClips();
 }
-let map, marker, currentPts = [], idx = 0, playing = false, timer; let clips = [];
+let map, marker, currentPts = [], idx = 0, playing = false, timer;
+let clips = [], filtered = [], showAll = false;
 async function loadClips() {
+  const url = showAll ? "all_points.json?t=" + Date.now() : "clips.json?t=" + Date.now();
   try {
-    const r = await fetch("clips.json?t=" + Date.now());
-    if (!r.ok) throw new Error("no clips.json");
+    const r = await fetch(url);
+    if (!r.ok) throw new Error();
     clips = await r.json();
+    document.getElementById("status").textContent = clips.length + " clips";
   } catch (e) {
-    document.getElementById("cliplist").innerHTML = "<div style='padding:12px;color:#aaa'>No clips.json found.<br>Run clip_processor.py first.</div>";
+    document.getElementById("cliplist").innerHTML = "<div style='padding:12px;color:#888'>No data. Run the processor.</div>";
     return;
   }
+  applyFilter();
+  if (filtered.length) selectClip(0);
+}
+function applyFilter() {
+  const q = document.getElementById("filter").value.toLowerCase();
+  filtered = clips.filter(c => {
+    const day = new Date(c.start).toLocaleDateString("en-US", {month:"short", day:"numeric", timeZone:"America/Los_Angeles"});
+    const txt = (day + " " + c.start + " " + (c.home_related ? "home" : "")).toLowerCase();
+    return txt.includes(q);
+  });
   renderList();
-  if (clips.length) selectClip(0);
 }
 function renderList() {
   const el = document.getElementById("cliplist");
   el.innerHTML = "";
-  clips.forEach((c, i) => {
+  let lastDay = "";
+  filtered.forEach((c, i) => {
+    const day = new Date(c.start).toLocaleDateString("en-US", {weekday:"short", month:"short", day:"numeric", timeZone:"America/Los_Angeles"});
+    if (day !== lastDay) {
+      const h = document.createElement("div");
+      h.className = "day-header";
+      h.textContent = day;
+      el.appendChild(h);
+      lastDay = day;
+    }
     const d = document.createElement("div");
     d.className = "clip" + (c.home_related ? " home" : "");
-    d.innerHTML = `
-      <div class="time">${fmtTime(c.start)}</div>
-      <div class="meta">${Math.round(c.duration_sec/60)}m ${Math.round(c.duration_sec%60)}s · ${c.distance_m.toFixed(0)} m · ${c.avg_mph} mph${c.home_related ? " · home" : ""}</div>
-    `;
+    const mins = Math.round(c.duration_sec / 60);
+    const secs = Math.round(c.duration_sec % 60);
+    d.innerHTML = `<div class="time">${fmtTime(c.start)}</div>
+      <div class="meta">${mins}m ${secs}s · ${c.distance_m.toFixed(0)} m · ${c.avg_mph} mph${c.home_related ? " · home" : ""}</div>`;
     d.onclick = () => selectClip(i);
     el.appendChild(d);
   });
 }
 function selectClip(i) {
   document.querySelectorAll(".clip").forEach((el, j) => el.classList.toggle("active", j === i));
-  const c = clips[i];
-  currentPts = c.points;
+  const c = filtered[i];
+  currentPts = c.points || [];
   idx = 0;
   if (!map) initMap();
   else load(currentPts);
-  document.getElementById("info").textContent = `Clip ${i+1}/${clips.length}`;
+  document.getElementById("info-bar").textContent = `Clip ${i+1}/${filtered.length}`;
 }
 function initMap() {
   map = new maplibregl.Map({
@@ -141,8 +161,8 @@ function initMap() {
     style: {
       version: 8,
       sources: {
-        streets: { type: "raster", tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"], tileSize: 256, maxzoom: 19, attribution: "Esri" },
-        sat: { type: "raster", tiles: ["https://cache.gis.lacounty.gov/cache/rest/services/LACounty_Cache/LACounty_Aerial_2014/MapServer/tile/{z}/{y}/{x}"], tileSize: 256, maxzoom: 20, attribution: "LA County LARIAC4" }
+        streets: { type: "raster", tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"], tileSize: 256, maxzoom: 19 },
+        sat: { type: "raster", tiles: ["https://cache.gis.lacounty.gov/cache/rest/services/LACounty_Cache/LACounty_Aerial_2014/MapServer/tile/{z}/{y}/{x}"], tileSize: 256, maxzoom: 20 }
       },
       layers: [
         { id: "street", type: "raster", source: "streets" },
@@ -150,19 +170,16 @@ function initMap() {
       ]
     },
     center: currentPts.length ? [currentPts[0][1], currentPts[0][0]] : [-118.3465, 34.102],
-    zoom: 17,
-    pitch: 0, bearing: 0, maxPitch: 0, minPitch: 0,
-    dragRotate: false, pitchWithRotate: false, touchPitch: false
+    zoom: 16,
+    pitch: 0, bearing: 0, maxPitch: 0
   });
   marker = new maplibregl.Marker({ color: "#ff6b6b" }).setLngLat(currentPts.length ? [currentPts[0][1], currentPts[0][0]] : [-118.3465, 34.102]).addTo(map);
   map.on("load", () => load(currentPts));
-  document.getElementById("sat").onchange = applyBase;
-}
-function applyBase() {
-  if (!map) return;
-  const isSat = document.getElementById("sat").checked;
-  map.setLayoutProperty("sat", "visibility", isSat ? "visible" : "none");
-  map.setLayoutProperty("street", "visibility", isSat ? "none" : "visible");
+  document.getElementById("sat").onchange = () => {
+    const on = document.getElementById("sat").checked;
+    map.setLayoutProperty("sat", "visibility", on ? "visible" : "none");
+    map.setLayoutProperty("street", "visibility", on ? "none" : "visible");
+  };
 }
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371000, dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
@@ -171,10 +188,10 @@ function haversine(lat1, lon1, lat2, lon2) {
 }
 function mph(m) { return (m * 2.23694).toFixed(1); }
 function fmtTime(ts) {
-  return new Date(ts).toLocaleString("en-US", { month:"2-digit", day:"2-digit", hour:"numeric", minute:"2-digit", hour12:true, timeZone:"America/Los_Angeles" });
+  return new Date(ts).toLocaleString("en-US", { hour:"numeric", minute:"2-digit", hour12:true, timeZone:"America/Los_Angeles" });
 }
 function getSpeed(i) {
-  if (i < 1) return 0;
+  if (i < 1 || !currentPts[i]) return 0;
   const p1 = currentPts[i-1], p2 = currentPts[i];
   const d = haversine(p1[0], p1[1], p2[0], p2[1]);
   const s = (new Date(p2[2]) - new Date(p1[2])) / 1000;
@@ -183,34 +200,18 @@ function getSpeed(i) {
 function update() {
   if (!currentPts.length) return;
   const p = currentPts[idx];
-  document.getElementById("info").textContent = `${idx+1}/${currentPts.length} · ${fmtTime(p[2])}`;
-  let pause = "";
-  if (idx > 0) {
-    const sec = Math.round((new Date(currentPts[idx][2]) - new Date(currentPts[idx-1][2])) / 1000);
-    if (sec >= 5) {
-      const m = Math.floor(sec/60), s = sec%60;
-      pause = m ? `Paused ${m}m ${s}s` : `Paused ${s}s`;
-    }
-  }
-  document.getElementById("subtitle").textContent = pause;
-  const actual = getSpeed(idx);
-  const mult = parseFloat(document.getElementById("speed").value);
-  const rt = document.getElementById("realtime").checked;
-  let st = `Actual: ${mph(actual)} mph`;
-  if (!rt && mult !== 1) st += ` · ${mult}x (${mph(actual*mult)} mph)`;
-  document.getElementById("speedline").textContent = st;
+  document.getElementById("info-bar").textContent = `${idx+1}/${currentPts.length} · ${fmtTime(p[2])} · ${mph(getSpeed(idx))} mph`;
 }
 function centerOn(i, smooth) {
   if (!map || !marker || !currentPts[i]) return;
   const p = currentPts[i];
   marker.setLngLat([p[1], p[0]]);
-  if (smooth) map.easeTo({ center: [p[1], p[0]], pitch: 0, bearing: 0, duration: 300 });
-  else map.jumpTo({ center: [p[1], p[0]], pitch: 0, bearing: 0 });
+  if (smooth) map.easeTo({ center: [p[1], p[0]], duration: 300 });
+  else map.jumpTo({ center: [p[1], p[0]] });
 }
 function step() {
   if (!playing || idx >= currentPts.length) return;
   centerOn(idx, true);
-  document.getElementById("timeline").value = idx;
   update();
   idx++;
   if (idx < currentPts.length) {
@@ -225,55 +226,33 @@ function step() {
 function load(pts) {
   currentPts = pts; idx = 0;
   if (!pts.length) return;
-  map.jumpTo({ center: [pts[0][1], pts[0][0]], zoom: 17, pitch: 0, bearing: 0 });
-  document.getElementById("timeline").max = pts.length - 1;
-  document.getElementById("timeline").value = 0;
+  map.jumpTo({ center: [pts[0][1], pts[0][0]], zoom: 16 });
   centerOn(0, false); update();
 }
 document.getElementById("play").onclick = () => { if (playing) return; playing = true; if (idx >= currentPts.length) idx = 0; step(); };
 document.getElementById("pause").onclick = () => { playing = false; clearTimeout(timer); };
-document.getElementById("speed").oninput = e => { document.getElementById("speedval").textContent = e.target.value + "x"; update(); };
-document.getElementById("timeline").oninput = e => {
-  playing = false; clearTimeout(timer);
-  idx = parseInt(e.target.value);
-  centerOn(idx, false); update();
+document.getElementById("speed").oninput = e => { document.getElementById("speedval").textContent = e.target.value + "x"; };
+document.getElementById("filter").oninput = applyFilter;
+document.getElementById("showall").onclick = async () => {
+  showAll = !showAll;
+  document.getElementById("showall").textContent = showAll ? "SHOW CLIPS" : "SHOW ALL";
+  await loadClips();
 };
-document.getElementById("realtime").onchange = () => update();
-
 document.getElementById("lastping").onclick = () => {
   if (!clips.length) return;
-  // Prefer the most recent clip that has points
-  let lastClip = clips[clips.length - 1];
-  const pts = lastClip.points;
+  const last = clips[clips.length - 1];
+  const pts = last.points || [];
   if (!pts.length) return;
   const p = pts[pts.length - 1];
   if (window.pingMarker) window.pingMarker.remove();
   const el = document.createElement("div");
-  el.style.cssText = "width:18px;height:18px;border-radius:50%;background:#3b82f6;box-shadow:0 0 0 0 rgba(59,130,246,0.7);animation:ping 1.5s infinite;";
+  el.style.cssText = "width:18px;height:18px;border-radius:50%;background:#3b82f6;animation:ping 1.5s infinite;";
   window.pingMarker = new maplibregl.Marker({element: el})
     .setLngLat([p[1], p[0]])
     .setPopup(new maplibregl.Popup().setHTML(`Last ping<br>${fmtTime(p[2])}`))
-    .addTo(map)
-    .togglePopup();
+    .addTo(map).togglePopup();
   map.easeTo({center: [p[1], p[0]], zoom: 17});
 };
-
-let showAll = false;
-document.getElementById("showall").onclick = async () => {
-  showAll = !showAll;
-  document.getElementById("showall").textContent = showAll ? "SHOW CLIPS" : "SHOW ALL";
-  const url = showAll ? "all_points.json?t=" + Date.now() : "clips.json?t=" + Date.now();
-  try {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error("missing");
-    clips = await r.json();
-    renderList();
-    if (clips.length) selectClip(0);
-  } catch (e) {
-    document.getElementById("cliplist").innerHTML = "<div style='padding:12px;color:#aaa'>No data for this view.</div>";
-  }
-};
-
 if (localStorage.getItem("dt_auth") === "ok") show();
 </script>
 </body>
