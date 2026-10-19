@@ -14,6 +14,7 @@ html, body { height:100%; margin:0; font-family:system-ui; background:#111; colo
 #login form { background:#1a1a1a; padding:2rem; border-radius:12px; text-align:center; }
 input, button, select { padding:8px 12px; border-radius:6px; border:1px solid #444; background:#222; color:#eee; }
 button { cursor:pointer; }
+#lastping { color: #111; background: #e5e5e5; }
 #app { display:none; flex-direction:column; height:100vh; height:100dvh; box-sizing:border-box; }
 #main { display:flex; flex:1; min-height:0; }
 #sidebar { width:320px; background:#1a1a1a; overflow-y:auto; border-right:1px solid #333; }
@@ -233,7 +234,8 @@ document.getElementById("realtime").onchange = () => update();
 
 document.getElementById("lastping").onclick = () => {
   if (!clips.length) return;
-  const lastClip = clips[clips.length - 1];
+  // Prefer the most recent clip that has points
+  let lastClip = clips[clips.length - 1];
   const pts = lastClip.points;
   if (!pts.length) return;
   const p = pts[pts.length - 1];
