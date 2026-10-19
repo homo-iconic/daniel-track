@@ -167,14 +167,19 @@ def main():
         all_clips = []
         for day in sorted(by_day):
             day_pts = by_day[day]
+            dist_total = sum(haversine_m(day_pts[m]["lat"], day_pts[m]["lon"],
+                                          day_pts[m+1]["lat"], day_pts[m+1]["lon"])
+                             for m in range(len(day_pts)-1))
+            duration = (day_pts[-1]["ts"] - day_pts[0]["ts"]).total_seconds()
+            avg_speed = (dist_total / duration) if duration > 0 else 0
             all_clips.append({
                 "start": day_pts[0]["ts"].isoformat(),
                 "end": day_pts[-1]["ts"].isoformat(),
-                "duration_sec": (day_pts[-1]["ts"] - day_pts[0]["ts"]).total_seconds(),
-                "distance_m": 0,
-                "avg_mph": 0,
+                "duration_sec": round(duration, 1),
+                "distance_m": round(dist_total, 1),
+                "avg_mph": round(avg_speed * 2.23694, 1),
                 "max_mph": 0,
-                "home_related": False,
+                "home_related": any(pt["home"] for pt in day_pts),
                 "points": [[pt["lat"], pt["lon"], pt["ts"].isoformat()] for pt in day_pts]
             })
         with (Path.home() / "track" / "all_points.json").open("w") as f:
