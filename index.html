@@ -251,10 +251,17 @@ document.getElementById("lastping").onclick = () => {
   if (window.pingMarker) window.pingMarker.remove();
   const el = document.createElement("div");
   el.style.cssText = "width:18px;height:18px;border-radius:50%;background:#3b82f6;animation:ping 1.5s infinite;";
+  const popup = new maplibregl.Popup({closeButton: true, closeOnClick: false})
+    .setHTML(`<div style="font-family:system-ui;font-size:14px;line-height:1.4;color:#111">
+      <strong>Last ping</strong><br>
+      ${fmtTime(p[2])}<br>
+      <span style="color:#666;font-size:12px">${p[0].toFixed(5)}, ${p[1].toFixed(5)}</span>
+    </div>`);
   window.pingMarker = new maplibregl.Marker({element: el})
     .setLngLat([p[1], p[0]])
-    .setPopup(new maplibregl.Popup().setHTML(`Last ping<br>${fmtTime(p[2])}`))
-    .addTo(map).togglePopup();
+    .setPopup(popup)
+    .addTo(map);
+  popup.addTo(map);
   map.easeTo({center: [p[1], p[0]], zoom: 17});
 };
 if (localStorage.getItem("dt_auth") === "ok") show();
