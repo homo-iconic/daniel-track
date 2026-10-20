@@ -916,11 +916,26 @@ function initMap() {
           tiles: ["https://cache.gis.lacounty.gov/cache/rest/services/LACounty_Cache/LACounty_Aerial_2014/MapServer/tile/{z}/{y}/{x}"],
           tileSize: 256, maxzoom: 20,
           attribution: "LA County"
+        },
+        // Road lines + names for satellite (Esri reference overlays)
+        roads: {
+          type: "raster",
+          tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"],
+          tileSize: 256, maxzoom: 19,
+          attribution: "Esri"
+        },
+        places: {
+          type: "raster",
+          tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"],
+          tileSize: 256, maxzoom: 19,
+          attribution: "Esri"
         }
       },
       layers: [
         { id: "street", type: "raster", source: "streets", layout: { visibility: "none" } },
-        { id: "sat", type: "raster", source: "sat", layout: { visibility: "visible" } }
+        { id: "sat", type: "raster", source: "sat", layout: { visibility: "visible" } },
+        { id: "roads", type: "raster", source: "roads", layout: { visibility: "visible" }, paint: { "raster-opacity": 0.95 } },
+        { id: "places", type: "raster", source: "places", layout: { visibility: "visible" }, paint: { "raster-opacity": 0.9 } }
       ]
     },
     center, zoom: 16, pitch: 0, bearing: 0, maxPitch: 0,
@@ -1318,13 +1333,13 @@ $("pace-fixed").onclick = () => {
   paceActual = false;
   $("pace-fixed").classList.add("on");
   $("pace-actual").classList.remove("on");
-  $("pace-hint").textContent = "Fixed: smooth glide between pings (~0.7s each at 1×).";
+  $("pace-hint").textContent = "Default 0.5× is a slow, easy-to-follow glide. 1× is faster review. Scrubber always matches clip position.";
 };
 $("pace-actual").onclick = () => {
   paceActual = true;
   $("pace-actual").classList.add("on");
   $("pace-fixed").classList.remove("on");
-  $("pace-hint").textContent = "Actual: glide timed to real gaps between pings (capped so long stalls don’t drag).";
+  $("pace-hint").textContent = "Actual: still slowed for watching; timed from real ping gaps. Scrubber stays in sync.";
 };
 
 $("btn-lastping").onclick = showLastPing;
