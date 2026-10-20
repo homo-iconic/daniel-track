@@ -591,10 +591,10 @@ button:disabled { opacity: 0.35; pointer-events: none; }
       </div>
       <div class="speed-wrap">
         <span>Speed</span>
-        <input type="range" id="speed" min="0.25" max="8" step="0.25" value="1">
-        <span id="speedval">1×</span>
+        <input type="range" id="speed" min="0.25" max="8" step="0.25" value="0.5">
+        <span id="speedval">0.5×</span>
       </div>
-      <div class="hint" id="pace-hint">Fixed: smooth glide between pings (~0.7s each at 1×).</div>
+      <div class="hint" id="pace-hint">Default 0.5× is a slow, easy-to-follow glide. 1× is faster review. Scrubber always matches clip position.</div>
     </div>
   </div>
 </div>
@@ -1165,14 +1165,16 @@ function stopPlayback() {
 }
 
 function segmentDurationMs(i) {
-  const speed = parseFloat($("speed").value) || 1;
+  // Slider is relative to a human-followable base — not real mph/kph.
+  // 1× ≈ 2s per hop; default 0.5× ≈ 4s so the thumb sits below 1×.
+  // Scrubber still tracks true position along the clip.
+  const speed = parseFloat($("speed").value) || 0.5;
+  const BASE_MS = 2000;
   if (paceActual && currentPts[i + 1]) {
     const sec = (new Date(currentPts[i + 1][2]) - new Date(currentPts[i][2])) / 1000;
-    // Cap absurd gaps so replay stays watchable; still proportional
-    return Math.max(180, Math.min(2200, (sec * 1000) / speed));
+    return Math.max((BASE_MS * 0.45) / speed, Math.min(8000, (sec * 1000) / speed));
   }
-  // Fixed: ~700ms per hop at 1× — smooth glide, not choppy jumps
-  return Math.max(160, 700 / speed);
+  return Math.max(400, BASE_MS / speed);
 }
 
 function togglePlay() {
