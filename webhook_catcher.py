@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
+import os
+import signal
 import urllib.request
 import subprocess
 import time
@@ -9,6 +11,9 @@ from pathlib import Path
 from math import radians, sin, cos, sqrt, atan2
 
 LOG = Path.home() / "track" / "master.jsonl"
+TRACK = Path.home() / "track"
+ALERT_BIN = TRACK / "motion_alert"
+ALERT_PID = TRACK / "motion_alert.pid"
 NTFY_TOPIC = "ZttLoc"
 
 HOME_LAT = 34.102029
@@ -39,6 +44,33 @@ def ntfy(title, message):
         print(f"  → ntfy: {title}")
     except Exception as e:
         print(f"  ntfy failed: {e}")
+
+def mac_motion_alert(title, message):
+    """Top-right Mac panel; Submarine chime loops until Dismiss."""
+    try:
+        if not ALERT_BIN.exists():
+            print("  mac alert skipped: motion_alert binary missing (swiftc motion_alert.swift)")
+            return
+        if ALERT_PID.exists():
+            try:
+                os.kill(int(ALERT_PID.read_text().strip()), signal.SIGTERM)
+            except Exception:
+                pass
+            try:
+                ALERT_PID.unlink(missing_ok=True)
+            except Exception:
+                pass
+            time.sleep(0.2)
+        subprocess.Popen(
+            [str(ALERT_BIN), title, message],
+            cwd=str(TRACK),
+            start_new_session=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        print(f"  → mac alert: {title}")
+    except Exception as e:
+        print(f"  mac alert failed: {e}")
 
 def rebuild_and_push():
     global last_push
@@ -134,10 +166,17 @@ class Handler(BaseHTTPRequestHandler):
                 print(f"  moved {dist:.1f} m in {dt:.0f}s  ({speed:.1f} m/s)  prev_home={prev_home} curr_home={currently_home}")
 
                 if prev_home and not currently_home:
-                    ntfy("Left home", f"{dist:.0f} m ({dist*3.28:.0f} ft)\n{lat:.5f},{lon:.5f}")
+                    msg = f"{dist:.0f} m ({dist*3.28:.0f} ft)\n{lat:.5f},{lon:.5f}"
+                    ntfy("Left home", msg)
+                    mac_motion_alert("Left home", f"Moved {dist:.0f} m · {lat:.5f}, {lon:.5f}")
 
                 if dist >= 5 and not (prev_home and currently_home):
-                    ntfy("Daniel moved", f"{dist:.0f} m ({dist*3.28:.0f} ft)\n{lat:.5f},{lon:.5f}")
+                    msg = f"{dist:.0f} m ({dist*3.28:.0f} ft)\n{lat:.5f},{lon:.5f}"
+                    ntfy("Daniel moved", msg)
+                    mac_motion_alert(
+                        "Motion detected",
+                        f"Daniel moved {dist:.0f} m ({dist*3.28:.0f} ft)\n{lat:.5f}, {lon:.5f}",
+                    )
 
                 if dist > 100 and speed > 30:
                     ntfy("Possible spoof", f"Jump {dist:.0f} m at {speed:.0f} m/s")
