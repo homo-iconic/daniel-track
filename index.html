@@ -1,270 +1,1125 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Daniel Track">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23111'/%3E%3Ctext x='90' y='110' font-size='80' text-anchor='middle' fill='%23eee'%3EDT%3C/text%3E%3C/svg%3E">
+<meta name="theme-color" content="#0a0a0b">
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230a0a0b'/%3E%3Ccircle cx='90' cy='90' r='28' fill='none' stroke='%230A84FF' stroke-width='10'/%3E%3Ccircle cx='90' cy='90' r='10' fill='%230A84FF'/%3E%3C/svg%3E">
 <title>Daniel Track</title>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet"/>
 <style>
-:root { --bg:#0d0d0d; --panel:#161616; --border:#2a2a2a; --text:#eee; --muted:#888; --accent:#3b82f6; }
-html, body { height:100%; margin:0; font-family:system-ui, sans-serif; background:var(--bg); color:var(--text); }
-#login { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:9999; }
-#login form { background:var(--panel); padding:2rem; border-radius:12px; text-align:center; }
-input, button, select { padding:8px 12px; border-radius:6px; border:1px solid #444; background:#222; color:var(--text); font-size:14px; }
-button { cursor:pointer; }
-button:hover { background:#333; }
-#app { display:none; flex-direction:column; height:100vh; height:100dvh; }
-#header { display:flex; align-items:center; gap:12px; padding:10px 14px; background:var(--panel); border-bottom:1px solid var(--border); flex-wrap:wrap; }
-#header h1 { margin:0; font-size:16px; font-weight:600; }
-#main { display:flex; flex:1; min-height:0; }
-#sidebar { width:340px; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; }
-#sidebar-tools { padding:10px; border-bottom:1px solid var(--border); display:flex; gap:8px; }
-#sidebar-tools input { flex:1; }
-#cliplist { flex:1; overflow-y:auto; }
-.day-header { padding:8px 12px; font-size:12px; font-weight:600; color:var(--muted); background:#111; position:sticky; top:0; }
-.clip { padding:10px 12px; border-bottom:1px solid #222; cursor:pointer; }
-.clip:hover, .clip.active { background:#222; }
-.clip .time { font-weight:600; font-size:14px; }
-.clip .meta { font-size:12px; color:var(--muted); margin-top:2px; }
-.clip.home { border-left:3px solid #4ade80; }
-#map-wrap { flex:1; display:flex; flex-direction:column; min-width:0; }
-#controls { padding:8px 12px; background:var(--panel); display:flex; gap:8px; align-items:center; flex-wrap:wrap; border-bottom:1px solid var(--border); }
-#map { flex:1; min-height:200px; }
-#info-bar { padding:6px 12px; background:var(--panel); font-size:13px; color:var(--muted); border-top:1px solid var(--border); }
-@media (max-width:700px) {
-  #sidebar { width:100%; max-height:45vh; border-right:none; border-bottom:1px solid var(--border); }
-  #main { flex-direction:column; }
-  #header { padding:8px; }
+:root {
+  --bg: #0a0a0b;
+  --surface: rgba(18, 18, 20, 0.78);
+  --surface-solid: #121214;
+  --elevated: rgba(28, 28, 30, 0.92);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --text: #f5f5f7;
+  --muted: #86868b;
+  --faint: #636366;
+  --accent: #0a84ff;
+  --accent-soft: rgba(10, 132, 255, 0.18);
+  --home: #30d158;
+  --warn: #ff9f0a;
+  --danger: #ff453a;
+  --glass: saturate(180%) blur(24px);
+  --radius: 14px;
+  --radius-sm: 10px;
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
 }
-@keyframes ping {
-  0% { box-shadow: 0 0 0 0 rgba(59,130,246,0.7); }
-  70% { box-shadow: 0 0 0 12px rgba(59,130,246,0); }
-  100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body {
+  height: 100%; margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
-.maplibregl-popup-content { color:#111; background:#fff; }
-.maplibregl-popup-close-button { color:#111; }
+button, input, select { font: inherit; color: inherit; }
+button {
+  cursor: pointer; border: none; background: transparent;
+  transition: background .15s, color .15s, opacity .15s, transform .1s;
+}
+button:active { transform: scale(0.97); }
+button:disabled { opacity: 0.35; pointer-events: none; }
+
+/* ——— Login ——— */
+#login {
+  position: fixed; inset: 0; z-index: 10000;
+  display: flex; align-items: center; justify-content: center;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(10,132,255,0.18), transparent 55%),
+    var(--bg);
+  padding: 24px;
+}
+#login.hidden { display: none; }
+.login-card {
+  width: min(360px, 100%);
+  padding: 36px 28px 28px;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  text-align: center;
+  backdrop-filter: var(--glass);
+}
+.login-mark {
+  width: 56px; height: 56px; margin: 0 auto 18px;
+  border-radius: 16px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(10,132,255,0.35);
+  display: grid; place-items: center;
+}
+.login-mark span {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 6px rgba(10,132,255,0.25);
+}
+.login-card h1 {
+  margin: 0 0 6px; font-size: 22px; font-weight: 600; letter-spacing: -0.02em;
+}
+.login-card p {
+  margin: 0 0 22px; font-size: 13px; color: var(--muted); line-height: 1.4;
+}
+#pw {
+  width: 100%; padding: 14px 16px; margin-bottom: 12px;
+  border-radius: 12px; border: 1px solid var(--border-strong);
+  background: rgba(0,0,0,0.35); color: var(--text); font-size: 16px;
+  outline: none; text-align: center; letter-spacing: 0.04em;
+}
+#pw:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.login-btn {
+  width: 100%; padding: 14px; border-radius: 12px;
+  background: var(--accent); color: #fff; font-weight: 600; font-size: 15px;
+}
+.login-btn:hover { filter: brightness(1.08); }
+.login-err { margin-top: 12px; font-size: 13px; color: var(--danger); min-height: 1.2em; }
+
+/* ——— App shell ——— */
+#app {
+  display: none; height: 100vh; height: 100dvh;
+  position: relative; overflow: hidden;
+}
+#app.show { display: block; }
+#map { position: absolute; inset: 0; }
+
+/* Top chrome */
+.topbar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 20;
+  padding: calc(10px + var(--safe-t)) 14px 10px;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  pointer-events: none;
+}
+.topbar > * { pointer-events: auto; }
+.brand-chip, .status-cluster {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+}
+.brand-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.brand-chip strong { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
+.status-cluster { gap: 10px; padding: 6px 6px 6px 12px; flex-wrap: wrap; justify-content: flex-end; }
+.pill {
+  font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pill b { color: var(--text); font-weight: 600; }
+.pill-btn {
+  padding: 7px 12px; border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  font-size: 12px; font-weight: 500; color: var(--text);
+}
+.pill-btn:hover { background: rgba(255,255,255,0.1); }
+.pill-btn.active { background: var(--accent-soft); border-color: rgba(10,132,255,0.4); color: #7eb8ff; }
+
+/* Sidebar */
+.sidebar {
+  position: absolute; z-index: 30;
+  top: calc(64px + var(--safe-t));
+  left: 14px; bottom: calc(118px + var(--safe-b));
+  width: min(340px, calc(100vw - 28px));
+  display: flex; flex-direction: column;
+  background: var(--surface);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: transform .28s cubic-bezier(.2,.8,.2,1), opacity .2s;
+}
+.sidebar.collapsed {
+  transform: translateX(calc(-100% - 20px));
+  opacity: 0; pointer-events: none;
+}
+.side-head {
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.side-title-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.side-title-row h2 {
+  margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.02em;
+}
+.mode-toggle {
+  display: inline-flex; padding: 3px;
+  background: rgba(0,0,0,0.35);
+  border-radius: 9px; border: 1px solid var(--border);
+}
+.mode-toggle button {
+  padding: 5px 10px; border-radius: 7px;
+  font-size: 11px; font-weight: 600; color: var(--muted);
+}
+.mode-toggle button.on {
+  background: rgba(255,255,255,0.1); color: var(--text);
+}
+.search-row { display: flex; gap: 8px; }
+#filter {
+  flex: 1; min-width: 0; padding: 9px 12px;
+  border-radius: 10px; border: 1px solid var(--border);
+  background: rgba(0,0,0,0.3); font-size: 13px; outline: none;
+}
+#filter:focus { border-color: rgba(10,132,255,0.5); }
+.stats-row {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+}
+.stat {
+  padding: 8px 6px; border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  text-align: center;
+}
+.stat .v { display: block; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stat .k { display: block; font-size: 10px; color: var(--faint); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+#cliplist { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.day-header {
+  position: sticky; top: 0; z-index: 2;
+  padding: 8px 14px;
+  font-size: 11px; font-weight: 600;
+  color: var(--muted); letter-spacing: 0.02em;
+  background: rgba(12,12,14,0.92);
+  backdrop-filter: blur(12px);
+  display: flex; justify-content: space-between; align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+.day-header .day-meta { font-weight: 500; color: var(--faint); font-variant-numeric: tabular-nums; }
+.clip {
+  padding: 12px 14px; cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  border-left: 2px solid transparent;
+  transition: background .12s;
+}
+.clip:hover { background: rgba(255,255,255,0.04); }
+.clip.active {
+  background: var(--accent-soft);
+  border-left-color: var(--accent);
+}
+.clip.home { border-left-color: var(--home); }
+.clip.home.active { border-left-color: var(--accent); }
+.clip-top {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+}
+.clip .time { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.clip .badge {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 2px 6px; border-radius: 5px;
+  background: rgba(48,209,88,0.15); color: var(--home);
+}
+.clip .meta {
+  margin-top: 4px; font-size: 12px; color: var(--muted);
+  display: flex; flex-wrap: wrap; gap: 6px 10px; font-variant-numeric: tabular-nums;
+}
+.clip .meta span::before { content: ""; }
+.clip .meta .sep { color: var(--faint); }
+.empty {
+  padding: 28px 16px; text-align: center; color: var(--muted); font-size: 13px;
+}
+
+/* Map HUD */
+.hud {
+  position: absolute; z-index: 25;
+  top: calc(64px + var(--safe-t));
+  right: 14px;
+  width: min(220px, calc(100vw - 28px));
+  padding: 12px 14px;
+  background: var(--surface);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  font-variant-numeric: tabular-nums;
+  opacity: 0; pointer-events: none;
+  transform: translateY(-6px);
+  transition: opacity .2s, transform .2s;
+}
+.hud.visible { opacity: 1; pointer-events: auto; transform: none; }
+.hud-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 8px; padding: 4px 0;
+  font-size: 12px;
+}
+.hud-row .k { color: var(--muted); }
+.hud-row .v { color: var(--text); font-weight: 600; font-size: 13px; }
+.hud-title {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--faint); margin-bottom: 6px;
+}
+
+/* Transport bar */
+.transport {
+  position: absolute; z-index: 40;
+  left: 50%; bottom: calc(16px + var(--safe-b));
+  transform: translateX(-50%);
+  width: min(640px, calc(100vw - 28px));
+  padding: 10px 12px 12px;
+  background: var(--surface);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+}
+.transport-top {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+}
+.play-btn {
+  width: 40px; height: 40px; flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: grid; place-items: center;
+  box-shadow: 0 4px 14px rgba(10,132,255,0.35);
+}
+.play-btn.playing { background: #fff; color: #000; }
+.play-btn svg { width: 16px; height: 16px; display: block; }
+.scrub {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;
+}
+.scrub-times {
+  display: flex; justify-content: space-between;
+  font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.scrub-times .playing-lab {
+  display: none; align-items: center; gap: 5px;
+  color: var(--accent); font-weight: 600; font-size: 11px;
+}
+.scrub-times .playing-lab.on { display: inline-flex; }
+.playing-lab .eq {
+  display: flex; gap: 2px; align-items: flex-end; height: 10px;
+}
+.playing-lab .eq i {
+  width: 2px; background: var(--accent); border-radius: 1px;
+  animation: eq 0.9s ease-in-out infinite;
+}
+.playing-lab .eq i:nth-child(1) { height: 4px; animation-delay: 0s; }
+.playing-lab .eq i:nth-child(2) { height: 9px; animation-delay: 0.15s; }
+.playing-lab .eq i:nth-child(3) { height: 6px; animation-delay: 0.3s; }
+@keyframes eq {
+  0%, 100% { transform: scaleY(0.45); }
+  50% { transform: scaleY(1); }
+}
+#progress {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 4px; border-radius: 2px;
+  background: rgba(255,255,255,0.12); outline: none; cursor: pointer;
+}
+#progress::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; border: none;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+#progress::-moz-range-thumb {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; border: none;
+}
+.transport-bot {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.seg {
+  display: inline-flex; padding: 2px;
+  background: rgba(0,0,0,0.35);
+  border-radius: 9px; border: 1px solid var(--border);
+}
+.seg button {
+  padding: 6px 9px; border-radius: 7px;
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  white-space: nowrap;
+}
+.seg button.on {
+  background: rgba(255,255,255,0.12); color: var(--text);
+}
+.speed-wrap {
+  display: flex; align-items: center; gap: 6px;
+  margin-left: auto; font-size: 11px; color: var(--muted);
+}
+#speed {
+  width: 88px; -webkit-appearance: none; appearance: none;
+  height: 3px; border-radius: 2px;
+  background: rgba(255,255,255,0.15); outline: none;
+}
+#speed::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px; height: 12px; border-radius: 50%; background: #fff;
+}
+#speedval { min-width: 28px; color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.hint {
+  flex-basis: 100%;
+  font-size: 10px; color: var(--faint); line-height: 1.35;
+  padding: 2px 2px 0;
+}
+.sidebar-toggle {
+  position: absolute; z-index: 35;
+  left: 14px; bottom: calc(118px + var(--safe-b));
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: var(--surface);
+  backdrop-filter: var(--glass);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  display: none; place-items: center;
+  color: var(--text);
+}
+.sidebar-toggle svg { width: 18px; height: 18px; }
+
+/* Custom markers */
+.playhead {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 3px rgba(10,132,255,0.35), 0 2px 6px rgba(0,0,0,0.4);
+  position: relative;
+}
+.playhead.live::after {
+  content: "";
+  position: absolute; inset: -5px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(10,132,255,0.7);
+  animation: ring 1.4s ease-out infinite;
+}
+@keyframes ring {
+  0% { transform: scale(0.7); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.ping-dot {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(10,132,255,0.6);
+  animation: pingpulse 1.6s infinite;
+}
+@keyframes pingpulse {
+  0% { box-shadow: 0 0 0 0 rgba(10,132,255,0.55); }
+  70% { box-shadow: 0 0 0 14px rgba(10,132,255,0); }
+  100% { box-shadow: 0 0 0 0 rgba(10,132,255,0); }
+}
+.ep-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+.ep-dot.start { background: var(--home); }
+.ep-dot.end { background: var(--danger); }
+
+.maplibregl-popup-content {
+  background: #1c1c1e !important;
+  color: var(--text) !important;
+  border-radius: 12px !important;
+  padding: 12px 14px !important;
+  box-shadow: var(--shadow) !important;
+  border: 1px solid var(--border);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.maplibregl-popup-close-button {
+  color: var(--muted) !important; font-size: 18px !important;
+  padding: 4px 8px !important;
+}
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+  border-top-color: #1c1c1e !important;
+}
+.maplibregl-ctrl-attrib { font-size: 9px !important; opacity: 0.55; }
+.maplibregl-ctrl-bottom-right { margin-bottom: 110px !important; }
+
+@media (max-width: 720px) {
+  .sidebar {
+    top: auto;
+    left: 10px; right: 10px;
+    bottom: calc(128px + var(--safe-b));
+    width: auto;
+    max-height: 38vh;
+    border-radius: 16px;
+  }
+  .sidebar.collapsed {
+    transform: translateY(calc(100% + 140px));
+  }
+  .sidebar-toggle {
+    display: grid;
+    left: auto; right: 14px;
+    bottom: calc(128px + var(--safe-b));
+  }
+  .hud {
+    top: calc(58px + var(--safe-t));
+    right: 10px; left: auto;
+    width: auto; min-width: 150px;
+    padding: 8px 10px;
+  }
+  .status-cluster .pill.hide-sm { display: none; }
+  .transport { bottom: calc(10px + var(--safe-b)); border-radius: 16px; }
+  .hint { display: none; }
+  .maplibregl-ctrl-bottom-right { margin-bottom: 120px !important; }
+}
 </style>
 </head>
 <body>
+
 <div id="login">
-  <form onsubmit="return check(event)">
-    <h3>Daniel Track</h3>
-    <input type="password" id="pw" placeholder="password" autofocus>
-    <br><br>
-    <button type="submit">Enter</button>
-  </form>
-</div>
-<div id="app">
-  <div id="header">
+  <div class="login-card">
+    <div class="login-mark"><span></span></div>
     <h1>Daniel Track</h1>
-    <span id="status" style="font-size:13px;color:#888"></span>
+    <p>Private location timeline</p>
+    <form onsubmit="return checkPw(event)">
+      <input type="password" id="pw" placeholder="Password" autocomplete="current-password" autofocus>
+      <button type="submit" class="login-btn">Continue</button>
+      <div class="login-err" id="login-err"></div>
+    </form>
   </div>
-  <div id="main">
-    <div id="sidebar">
-      <div id="sidebar-tools">
-        <input type="search" id="filter" placeholder="Filter by date or text…">
-        <button id="showall">SHOW ALL</button>
-      </div>
-      <div id="cliplist"></div>
+</div>
+
+<div id="app">
+  <div id="map"></div>
+
+  <div class="topbar">
+    <div class="brand-chip">
+      <span class="brand-dot"></span>
+      <strong>Daniel Track</strong>
     </div>
-    <div id="map-wrap">
-      <div id="controls">
-        <button id="play">Play</button>
-        <button id="pause">Pause</button>
-        <button id="lastping">Last ping</button>
-        <label>Speed <input type="range" id="speed" min="0.25" max="8" step="0.25" value="1"> <span id="speedval">1x</span></label>
-        <label><input type="checkbox" id="sat"> Satellite</label>
-        <label><input type="checkbox" id="realtime"> Real time</label>
+    <div class="status-cluster">
+      <span class="pill hide-sm">Clips <b id="stat-clips">—</b></span>
+      <span class="pill hide-sm">Distance <b id="stat-dist">—</b></span>
+      <span class="pill">Last <b id="stat-last">—</b></span>
+      <button type="button" class="pill-btn" id="btn-lastping" title="Jump to most recent ping">Last ping</button>
+      <button type="button" class="pill-btn" id="btn-fit" title="Fit route in view">Fit</button>
+    </div>
+  </div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="side-head">
+      <div class="side-title-row">
+        <h2 id="list-title">Motion</h2>
+        <div class="mode-toggle" role="group" aria-label="Clip mode">
+          <button type="button" id="mode-motion" class="on">Motion</button>
+          <button type="button" id="mode-all">All days</button>
+        </div>
       </div>
-      <div id="map"></div>
-      <div id="info-bar"></div>
+      <div class="search-row">
+        <input type="search" id="filter" placeholder="Filter date, home…" enterkeyhint="search">
+      </div>
+      <div class="stats-row">
+        <div class="stat"><span class="v" id="s-count">0</span><span class="k">Shown</span></div>
+        <div class="stat"><span class="v" id="s-km">0</span><span class="k">km</span></div>
+        <div class="stat"><span class="v" id="s-home">0</span><span class="k">Home</span></div>
+      </div>
+    </div>
+    <div id="cliplist"></div>
+  </aside>
+
+  <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle clip list">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+  </button>
+
+  <div class="hud" id="hud">
+    <div class="hud-title">Telemetry</div>
+    <div class="hud-row"><span class="k">Time</span><span class="v" id="h-time">—</span></div>
+    <div class="hud-row"><span class="k">Speed</span><span class="v" id="h-speed">—</span></div>
+    <div class="hud-row"><span class="k">Progress</span><span class="v" id="h-prog">—</span></div>
+    <div class="hud-row"><span class="k">Along path</span><span class="v" id="h-along">—</span></div>
+    <div class="hud-row"><span class="k">Coords</span><span class="v" id="h-coords" style="font-family:var(--mono);font-size:11px;font-weight:500">—</span></div>
+  </div>
+
+  <div class="transport">
+    <div class="transport-top">
+      <button type="button" class="play-btn" id="btn-play" aria-label="Play">
+        <svg id="icon-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72L19 12 8 5.14z"/></svg>
+        <svg id="icon-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 5h4v14H6V5zm8 0h4v14h-4V5z"/></svg>
+      </button>
+      <div class="scrub">
+        <div class="scrub-times">
+          <span id="t-cur">0:00</span>
+          <span class="playing-lab" id="playing-lab">
+            <span class="eq"><i></i><i></i><i></i></span>
+            Playing
+          </span>
+          <span id="t-end">0:00</span>
+        </div>
+        <input type="range" id="progress" min="0" max="0" value="0" step="1">
+      </div>
+    </div>
+    <div class="transport-bot">
+      <div class="seg" title="Map style">
+        <button type="button" id="map-sat" class="on">Satellite</button>
+        <button type="button" id="map-street">Streets</button>
+      </div>
+      <div class="seg" title="Playback pacing">
+        <button type="button" id="pace-fixed" class="on">Fixed</button>
+        <button type="button" id="pace-actual">Actual</button>
+      </div>
+      <div class="speed-wrap">
+        <span>Speed</span>
+        <input type="range" id="speed" min="0.25" max="8" step="0.25" value="1">
+        <span id="speedval">1×</span>
+      </div>
+      <div class="hint" id="pace-hint">Fixed: constant step rate. Actual: waits real GPS gaps (× speed). Not the same as 1×.</div>
     </div>
   </div>
 </div>
+
 <script>
 const PASS = "BustedBetch77";
-function check(e) {
+const TZ = "America/Los_Angeles";
+
+function checkPw(e) {
   e.preventDefault();
+  const err = document.getElementById("login-err");
   if (document.getElementById("pw").value === PASS) {
     localStorage.setItem("dt_auth", "ok");
-    show();
-  } else alert("Wrong password");
+    boot();
+  } else {
+    err.textContent = "Incorrect password";
+  }
   return false;
 }
-function show() {
-  document.getElementById("login").style.display = "none";
-  document.getElementById("app").style.display = "flex";
+
+function boot() {
+  document.getElementById("login").classList.add("hidden");
+  document.getElementById("app").classList.add("show");
   loadClips();
 }
-let map, marker, currentPts = [], idx = 0, playing = false, timer;
+
+/* ——— State ——— */
+let map, playMarker, startMarker, endMarker, pingMarker;
 let clips = [], filtered = [], showAll = false;
+let currentPts = [], idx = 0, playing = false, timer = null;
+let activeClip = -1;
+let paceActual = false;
+let satOn = true;
+let pathCum = [];
+
+const $ = (id) => document.getElementById(id);
+
+/* ——— Formatting ——— */
+function fmtTime(ts) {
+  return new Date(ts).toLocaleString("en-US", {
+    hour: "numeric", minute: "2-digit", hour12: true, timeZone: TZ
+  });
+}
+function fmtDay(ts) {
+  return new Date(ts).toLocaleDateString("en-US", {
+    weekday: "short", month: "short", day: "numeric", timeZone: TZ
+  });
+}
+function fmtShort(ts) {
+  return new Date(ts).toLocaleString("en-US", {
+    month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    hour12: true, timeZone: TZ
+  });
+}
+function fmtDur(sec) {
+  sec = Math.max(0, Math.round(sec));
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  if (h) return h + "h " + m + "m";
+  if (m) return m + "m " + String(s).padStart(2, "0") + "s";
+  return s + "s";
+}
+function fmtDist(m) {
+  if (m >= 1000) return (m / 1000).toFixed(m >= 10000 ? 0 : 1) + " km";
+  return Math.round(m) + " m";
+}
+function clipClock(pts, i) {
+  if (!pts.length) return 0;
+  const t0 = new Date(pts[0][2]).getTime();
+  const ti = new Date(pts[Math.min(i, pts.length - 1)][2]).getTime();
+  return Math.max(0, (ti - t0) / 1000);
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371000, dLat = (lat2 - lat1) * Math.PI / 180, dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+function mphFrom(ms) { return ms * 2.23694; }
+function getSpeed(i) {
+  if (i < 1 || !currentPts[i]) return 0;
+  const p1 = currentPts[i - 1], p2 = currentPts[i];
+  const d = haversine(p1[0], p1[1], p2[0], p2[1]);
+  const s = (new Date(p2[2]) - new Date(p1[2])) / 1000;
+  return s > 0 ? d / s : 0;
+}
+function buildCum(pts) {
+  const c = [0];
+  for (let i = 1; i < pts.length; i++) {
+    c.push(c[i - 1] + haversine(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]));
+  }
+  return c;
+}
+
+/* ——— Data ——— */
 async function loadClips() {
-  const url = showAll ? "all_points.json?t=" + Date.now() : "clips.json?t=" + Date.now();
+  const url = (showAll ? "all_points.json" : "clips.json") + "?t=" + Date.now();
   try {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error();
+    const r = await fetch(url, { cache: "no-store" });
+    if (!r.ok) throw new Error("fetch");
     clips = await r.json();
-    document.getElementById("status").textContent = clips.length + " clips";
-  } catch (e) {
-    document.getElementById("cliplist").innerHTML = "<div style='padding:12px;color:#888'>No data. Run the processor.</div>";
+  } catch {
+    $("cliplist").innerHTML = '<div class="empty">No data yet. Waiting for the catcher.</div>';
     return;
   }
+  updateGlobalStats();
   applyFilter();
-  if (filtered.length) selectClip(0);
+  if (filtered.length) selectClip(filtered.length - 1, false);
 }
+
+function updateGlobalStats() {
+  const n = clips.length;
+  const dist = clips.reduce((a, c) => a + (c.distance_m || 0), 0);
+  $("stat-clips").textContent = n;
+  $("stat-dist").textContent = fmtDist(dist);
+  if (n) {
+    const last = clips[n - 1];
+    const pts = last.points || [];
+    const ts = pts.length ? pts[pts.length - 1][2] : last.end;
+    $("stat-last").textContent = fmtShort(ts);
+  }
+}
+
 function applyFilter() {
-  const q = document.getElementById("filter").value.toLowerCase();
+  const q = $("filter").value.trim().toLowerCase();
   filtered = clips.filter(c => {
-    const day = new Date(c.start).toLocaleDateString("en-US", {month:"short", day:"numeric", timeZone:"America/Los_Angeles"});
-    const txt = (day + " " + c.start + " " + (c.home_related ? "home" : "")).toLowerCase();
-    return txt.includes(q);
+    if (!q) return true;
+    const day = fmtDay(c.start).toLowerCase();
+    const blob = [day, c.start, c.end, c.home_related ? "home" : "",
+      String(c.avg_mph), String(Math.round(c.distance_m))].join(" ").toLowerCase();
+    return blob.includes(q);
   });
+  const shownDist = filtered.reduce((a, c) => a + (c.distance_m || 0), 0);
+  $("s-count").textContent = filtered.length;
+  $("s-km").textContent = (shownDist / 1000).toFixed(shownDist >= 10000 ? 0 : 1);
+  $("s-home").textContent = filtered.filter(c => c.home_related).length;
+  $("list-title").textContent = showAll ? "All days" : "Motion";
   renderList();
 }
+
 function renderList() {
-  const el = document.getElementById("cliplist");
+  const el = $("cliplist");
   el.innerHTML = "";
+  if (!filtered.length) {
+    el.innerHTML = '<div class="empty">No clips match.</div>';
+    return;
+  }
   let lastDay = "";
+  let dayBucket = [];
+  const flushDay = (dayLabel) => {
+    if (!dayBucket.length) return;
+    const dist = dayBucket.reduce((a, x) => a + (x.c.distance_m || 0), 0);
+    const h = document.createElement("div");
+    h.className = "day-header";
+    h.innerHTML = `<span>${dayLabel}</span><span class="day-meta">${dayBucket.length} · ${fmtDist(dist)}</span>`;
+    el.appendChild(h);
+    dayBucket.forEach(({ c, i }) => el.appendChild(makeClipEl(c, i)));
+    dayBucket = [];
+  };
   filtered.forEach((c, i) => {
-    const day = new Date(c.start).toLocaleDateString("en-US", {weekday:"short", month:"short", day:"numeric", timeZone:"America/Los_Angeles"});
+    const day = fmtDay(c.start);
     if (day !== lastDay) {
-      const h = document.createElement("div");
-      h.className = "day-header";
-      h.textContent = day;
-      el.appendChild(h);
+      flushDay(lastDay);
       lastDay = day;
     }
-    const d = document.createElement("div");
-    d.className = "clip" + (c.home_related ? " home" : "");
-    const mins = Math.round(c.duration_sec / 60);
-    const secs = Math.round(c.duration_sec % 60);
-    d.innerHTML = `<div class="time">${fmtTime(c.start)}</div>
-      <div class="meta">${mins}m ${secs}s · ${c.distance_m.toFixed(0)} m · ${c.avg_mph} mph${c.home_related ? " · home" : ""}</div>`;
-    d.onclick = () => selectClip(i);
-    el.appendChild(d);
+    dayBucket.push({ c, i });
   });
+  flushDay(lastDay);
 }
-function selectClip(i) {
-  document.querySelectorAll(".clip").forEach((el, j) => el.classList.toggle("active", j === i));
-  const c = filtered[i];
-  currentPts = c.points || [];
-  idx = 0;
-  if (!map) initMap();
-  else load(currentPts);
-  document.getElementById("info-bar").textContent = `Clip ${i+1}/${filtered.length}`;
+
+function makeClipEl(c, i) {
+  const d = document.createElement("div");
+  d.className = "clip" + (c.home_related ? " home" : "") + (i === activeClip ? " active" : "");
+  const pts = c.points || [];
+  const endT = fmtTime(c.end);
+  d.innerHTML = `
+    <div class="clip-top">
+      <span class="time">${fmtTime(c.start)}${c.duration_sec > 0 ? " – " + endT : ""}</span>
+      ${c.home_related ? '<span class="badge">Home</span>' : ""}
+    </div>
+    <div class="meta">
+      <span>${fmtDur(c.duration_sec)}</span>
+      <span class="sep">·</span>
+      <span>${fmtDist(c.distance_m)}</span>
+      <span class="sep">·</span>
+      <span>${(c.avg_mph || 0).toFixed(1)} avg</span>
+      ${c.max_mph ? `<span class="sep">·</span><span>${c.max_mph.toFixed(1)} max</span>` : ""}
+      <span class="sep">·</span>
+      <span>${pts.length} pts</span>
+    </div>`;
+  d.onclick = () => selectClip(i, true);
+  return d;
 }
+
+/* ——— Map ——— */
 function initMap() {
+  const center = currentPts.length
+    ? [currentPts[0][1], currentPts[0][0]]
+    : [-118.3465, 34.102];
+
   map = new maplibregl.Map({
     container: "map",
     style: {
       version: 8,
       sources: {
-        streets: { type: "raster", tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"], tileSize: 256, maxzoom: 19 },
-        sat: { type: "raster", tiles: ["https://cache.gis.lacounty.gov/cache/rest/services/LACounty_Cache/LACounty_Aerial_2014/MapServer/tile/{z}/{y}/{x}"], tileSize: 256, maxzoom: 20 }
+        streets: {
+          type: "raster",
+          tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"],
+          tileSize: 256, maxzoom: 19,
+          attribution: "Esri"
+        },
+        sat: {
+          type: "raster",
+          tiles: ["https://cache.gis.lacounty.gov/cache/rest/services/LACounty_Cache/LACounty_Aerial_2014/MapServer/tile/{z}/{y}/{x}"],
+          tileSize: 256, maxzoom: 20,
+          attribution: "LA County"
+        }
       },
       layers: [
-        { id: "street", type: "raster", source: "streets" },
-        { id: "sat", type: "raster", source: "sat", layout: { visibility: "none" } }
+        { id: "street", type: "raster", source: "streets", layout: { visibility: "none" } },
+        { id: "sat", type: "raster", source: "sat", layout: { visibility: "visible" } }
       ]
     },
-    center: currentPts.length ? [currentPts[0][1], currentPts[0][0]] : [-118.3465, 34.102],
-    zoom: 16,
-    pitch: 0, bearing: 0, maxPitch: 0
+    center, zoom: 16, pitch: 0, bearing: 0, maxPitch: 0,
+    attributionControl: true
   });
-  marker = new maplibregl.Marker({ color: "#ff6b6b" }).setLngLat(currentPts.length ? [currentPts[0][1], currentPts[0][0]] : [-118.3465, 34.102]).addTo(map);
-  map.on("load", () => load(currentPts));
-  document.getElementById("sat").onchange = () => {
-    const on = document.getElementById("sat").checked;
-    map.setLayoutProperty("sat", "visibility", on ? "visible" : "none");
-    map.setLayoutProperty("street", "visibility", on ? "none" : "visible");
-  };
+
+  const el = document.createElement("div");
+  el.className = "playhead";
+  playMarker = new maplibregl.Marker({ element: el, anchor: "center" })
+    .setLngLat(center).addTo(map);
+
+  map.on("load", () => {
+    map.addSource("route", {
+      type: "geojson",
+      data: { type: "Feature", geometry: { type: "LineString", coordinates: [] } }
+    });
+    map.addLayer({
+      id: "route-glow", type: "line", source: "route",
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": "#0a84ff", "line-width": 8, "line-opacity": 0.25 }
+    });
+    map.addLayer({
+      id: "route-line", type: "line", source: "route",
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": "#5ac8fa", "line-width": 3, "line-opacity": 0.95 }
+    });
+    map.addSource("trail", {
+      type: "geojson",
+      data: { type: "Feature", geometry: { type: "LineString", coordinates: [] } }
+    });
+    map.addLayer({
+      id: "trail-line", type: "line", source: "trail",
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": "#ffffff", "line-width": 3, "line-opacity": 0.85 }
+    });
+    loadRoute(currentPts);
+  });
 }
-function haversine(lat1, lon1, lat2, lon2) {
-  const R = 6371000, dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+function setMapStyle(sat) {
+  satOn = sat;
+  if (!map) return;
+  map.setLayoutProperty("sat", "visibility", sat ? "visible" : "none");
+  map.setLayoutProperty("street", "visibility", sat ? "none" : "visible");
+  $("map-sat").classList.toggle("on", sat);
+  $("map-street").classList.toggle("on", !sat);
 }
-function mph(m) { return (m * 2.23694).toFixed(1); }
-function fmtTime(ts) {
-  return new Date(ts).toLocaleString("en-US", { hour:"numeric", minute:"2-digit", hour12:true, timeZone:"America/Los_Angeles" });
+
+function endpointEl(kind) {
+  const el = document.createElement("div");
+  el.className = "ep-dot " + kind;
+  return el;
 }
-function getSpeed(i) {
-  if (i < 1 || !currentPts[i]) return 0;
-  const p1 = currentPts[i-1], p2 = currentPts[i];
-  const d = haversine(p1[0], p1[1], p2[0], p2[1]);
-  const s = (new Date(p2[2]) - new Date(p1[2])) / 1000;
-  return s > 0 ? d / s : 0;
+
+function loadRoute(pts) {
+  currentPts = pts;
+  pathCum = buildCum(pts);
+  idx = 0;
+  stopPlayback();
+
+  if (!map) { initMap(); return; }
+
+  const coords = pts.map(p => [p[1], p[0]]);
+  if (map.getSource("route")) {
+    map.getSource("route").setData({
+      type: "Feature",
+      geometry: { type: "LineString", coordinates: coords.length ? coords : [] }
+    });
+  }
+  updateTrail(0);
+
+  if (startMarker) { startMarker.remove(); startMarker = null; }
+  if (endMarker) { endMarker.remove(); endMarker = null; }
+  if (pts.length >= 1) {
+    startMarker = new maplibregl.Marker({ element: endpointEl("start"), anchor: "center" })
+      .setLngLat([pts[0][1], pts[0][0]]).addTo(map);
+  }
+  if (pts.length >= 2) {
+    const last = pts[pts.length - 1];
+    endMarker = new maplibregl.Marker({ element: endpointEl("end"), anchor: "center" })
+      .setLngLat([last[1], last[0]]).addTo(map);
+  }
+
+  $("progress").max = Math.max(0, pts.length - 1);
+  $("progress").value = 0;
+  $("t-end").textContent = fmtDur(pts.length ? clipClock(pts, pts.length - 1) : 0);
+
+  if (pts.length) {
+    fitRoute(false);
+    centerOn(0, false);
+    updateHUD();
+    $("hud").classList.add("visible");
+  }
 }
-function update() {
-  if (!currentPts.length) return;
-  const p = currentPts[idx];
-  document.getElementById("info-bar").textContent = `${idx+1}/${currentPts.length} · ${fmtTime(p[2])} · ${mph(getSpeed(idx))} mph`;
+
+function updateTrail(i) {
+  if (!map || !map.getSource("trail")) return;
+  const coords = currentPts.slice(0, i + 1).map(p => [p[1], p[0]]);
+  map.getSource("trail").setData({
+    type: "Feature",
+    geometry: { type: "LineString", coordinates: coords.length >= 2 ? coords : [] }
+  });
 }
+
+function fitRoute(animate) {
+  if (!map || currentPts.length < 1) return;
+  if (currentPts.length === 1) {
+    map.easeTo({ center: [currentPts[0][1], currentPts[0][0]], zoom: 17, duration: animate ? 600 : 0 });
+    return;
+  }
+  const bounds = new maplibregl.LngLatBounds();
+  currentPts.forEach(p => bounds.extend([p[1], p[0]]));
+  map.fitBounds(bounds, { padding: 72, maxZoom: 17, duration: animate ? 700 : 0 });
+}
+
+function selectClip(i, userClick) {
+  activeClip = i;
+  document.querySelectorAll(".clip").forEach((el, j) => el.classList.toggle("active", j === i));
+  const c = filtered[i];
+  if (!c) return;
+  const pts = c.points || [];
+  if (!map) {
+    currentPts = pts;
+    initMap();
+  } else {
+    loadRoute(pts);
+  }
+  if (userClick && window.matchMedia("(max-width: 720px)").matches) {
+    $("sidebar").classList.add("collapsed");
+  }
+}
+
 function centerOn(i, smooth) {
-  if (!map || !marker || !currentPts[i]) return;
+  if (!map || !playMarker || !currentPts[i]) return;
   const p = currentPts[i];
-  marker.setLngLat([p[1], p[0]]);
-  if (smooth) map.easeTo({ center: [p[1], p[0]], duration: 300 });
+  playMarker.setLngLat([p[1], p[0]]);
+  if (smooth) map.easeTo({ center: [p[1], p[0]], duration: 280 });
   else map.jumpTo({ center: [p[1], p[0]] });
 }
+
+function updateHUD() {
+  if (!currentPts.length) return;
+  const i = Math.min(idx, currentPts.length - 1);
+  const p = currentPts[i];
+  const spd = mphFrom(getSpeed(i));
+  const along = pathCum[i] || 0;
+  const total = pathCum[pathCum.length - 1] || 0;
+  const pct = currentPts.length > 1 ? Math.round((i / (currentPts.length - 1)) * 100) : 100;
+
+  $("h-time").textContent = fmtTime(p[2]);
+  $("h-speed").textContent = spd.toFixed(1) + " mph";
+  $("h-prog").textContent = (i + 1) + " / " + currentPts.length + " · " + pct + "%";
+  $("h-along").textContent = fmtDist(along) + (total ? " / " + fmtDist(total) : "");
+  $("h-coords").textContent = p[0].toFixed(5) + ", " + p[1].toFixed(5);
+
+  $("progress").value = i;
+  $("t-cur").textContent = fmtDur(clipClock(currentPts, i));
+}
+
+/* ——— Playback ——— */
+function setPlayingUI(on) {
+  playing = on;
+  $("btn-play").classList.toggle("playing", on);
+  $("icon-play").style.display = on ? "none" : "block";
+  $("icon-pause").style.display = on ? "block" : "none";
+  $("playing-lab").classList.toggle("on", on);
+  $("btn-play").setAttribute("aria-label", on ? "Pause" : "Play");
+  if (playMarker) {
+    playMarker.getElement().classList.toggle("live", on);
+  }
+}
+
+function stopPlayback() {
+  clearTimeout(timer);
+  timer = null;
+  setPlayingUI(false);
+}
+
+function togglePlay() {
+  if (!currentPts.length) return;
+  if (playing) { stopPlayback(); return; }
+  if (idx >= currentPts.length - 1) idx = 0;
+  setPlayingUI(true);
+  step();
+}
+
 function step() {
-  if (!playing || idx >= currentPts.length) return;
+  if (!playing || !currentPts.length) return;
   centerOn(idx, true);
-  update();
+  updateTrail(idx);
+  updateHUD();
+
+  if (idx >= currentPts.length - 1) {
+    stopPlayback();
+    return;
+  }
+
+  const speed = parseFloat($("speed").value) || 1;
+  let delay;
+  if (paceActual) {
+    const sec = (new Date(currentPts[idx + 1][2]) - new Date(currentPts[idx][2])) / 1000;
+    delay = Math.max(40, (sec * 1000) / speed);
+  } else {
+    delay = Math.max(40, 320 / speed);
+  }
   idx++;
-  if (idx < currentPts.length) {
-    let delay = 350 / parseFloat(document.getElementById("speed").value);
-    if (document.getElementById("realtime").checked) {
-      const sec = (new Date(currentPts[idx][2]) - new Date(currentPts[idx-1][2])) / 1000;
-      delay = Math.max(80, sec * 1000);
-    }
-    timer = setTimeout(step, delay);
-  } else playing = false;
+  timer = setTimeout(step, delay);
 }
-function load(pts) {
-  currentPts = pts; idx = 0;
-  if (!pts.length) return;
-  map.jumpTo({ center: [pts[0][1], pts[0][0]], zoom: 16 });
-  centerOn(0, false); update();
+
+function seekTo(i) {
+  idx = Math.max(0, Math.min(i, currentPts.length - 1));
+  centerOn(idx, false);
+  updateTrail(idx);
+  updateHUD();
 }
-document.getElementById("play").onclick = () => { if (playing) return; playing = true; if (idx >= currentPts.length) idx = 0; step(); };
-document.getElementById("pause").onclick = () => { playing = false; clearTimeout(timer); };
-document.getElementById("speed").oninput = e => { document.getElementById("speedval").textContent = e.target.value + "x"; };
-document.getElementById("filter").oninput = applyFilter;
-document.getElementById("showall").onclick = async () => {
-  showAll = !showAll;
-  document.getElementById("showall").textContent = showAll ? "SHOW CLIPS" : "SHOW ALL";
-  await loadClips();
-};
-document.getElementById("lastping").onclick = () => {
-  if (!clips.length) return;
-  const last = clips[clips.length - 1];
+
+/* ——— Last ping ——— */
+function showLastPing() {
+  const src = clips.length ? clips : filtered;
+  if (!src.length) return;
+  const last = src[src.length - 1];
   const pts = last.points || [];
   if (!pts.length) return;
   const p = pts[pts.length - 1];
-  if (window.pingMarker) window.pingMarker.remove();
+  if (!map) {
+    currentPts = pts;
+    initMap();
+  }
+  if (pingMarker) pingMarker.remove();
   const el = document.createElement("div");
-  el.style.cssText = "width:18px;height:18px;border-radius:50%;background:#3b82f6;animation:ping 1.5s infinite;";
-  const popup = new maplibregl.Popup({closeButton: true, closeOnClick: false})
-    .setHTML(`<div style="font-family:system-ui;font-size:14px;line-height:1.4;color:#111">
-      <strong>Last ping</strong><br>
-      ${fmtTime(p[2])}<br>
-      <span style="color:#666;font-size:12px">${p[0].toFixed(5)}, ${p[1].toFixed(5)}</span>
-    </div>`);
-  window.pingMarker = new maplibregl.Marker({element: el})
+  el.className = "ping-dot";
+  const ageSec = Math.round((Date.now() - new Date(p[2]).getTime()) / 1000);
+  const ageStr = ageSec < 60 ? ageSec + "s ago"
+    : ageSec < 3600 ? Math.round(ageSec / 60) + "m ago"
+    : Math.round(ageSec / 3600) + "h ago";
+  const popup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, offset: 12 })
+    .setHTML(`
+      <div style="font-weight:600;margin-bottom:4px">Last ping</div>
+      <div>${fmtShort(p[2])}</div>
+      <div style="color:#86868b;font-size:12px;margin-top:4px">${ageStr}</div>
+      <div style="font-family:var(--mono);font-size:11px;color:#aeaeb2;margin-top:6px">${p[0].toFixed(5)}, ${p[1].toFixed(5)}</div>
+    `);
+  pingMarker = new maplibregl.Marker({ element: el, anchor: "center" })
     .setLngLat([p[1], p[0]])
     .setPopup(popup)
     .addTo(map);
   popup.addTo(map);
-  map.easeTo({center: [p[1], p[0]], zoom: 17});
+  map.easeTo({ center: [p[1], p[0]], zoom: Math.max(map.getZoom(), 16.5), duration: 700 });
+}
+
+/* ——— Events ——— */
+$("btn-play").onclick = togglePlay;
+$("progress").oninput = (e) => {
+  const was = playing;
+  stopPlayback();
+  seekTo(parseInt(e.target.value, 10));
+  if (was) { setPlayingUI(true); step(); }
 };
-if (localStorage.getItem("dt_auth") === "ok") show();
+$("speed").oninput = (e) => { $("speedval").textContent = e.target.value + "×"; };
+$("filter").oninput = applyFilter;
+
+$("mode-motion").onclick = async () => {
+  if (!showAll) return;
+  showAll = false;
+  $("mode-motion").classList.add("on");
+  $("mode-all").classList.remove("on");
+  await loadClips();
+};
+$("mode-all").onclick = async () => {
+  if (showAll) return;
+  showAll = true;
+  $("mode-all").classList.add("on");
+  $("mode-motion").classList.remove("on");
+  await loadClips();
+};
+
+$("map-sat").onclick = () => setMapStyle(true);
+$("map-street").onclick = () => setMapStyle(false);
+
+$("pace-fixed").onclick = () => {
+  paceActual = false;
+  $("pace-fixed").classList.add("on");
+  $("pace-actual").classList.remove("on");
+  $("pace-hint").textContent = "Fixed: constant step rate (≈320 ms ÷ speed). Best for quick review.";
+};
+$("pace-actual").onclick = () => {
+  paceActual = true;
+  $("pace-actual").classList.add("on");
+  $("pace-fixed").classList.remove("on");
+  $("pace-hint").textContent = "Actual: waits real gaps between GPS pings (÷ speed). 1× ≈ wall-clock; not the same as Fixed 1×.";
+};
+
+$("btn-lastping").onclick = showLastPing;
+$("btn-fit").onclick = () => fitRoute(true);
+$("sidebar-toggle").onclick = () => $("sidebar").classList.toggle("collapsed");
+
+document.addEventListener("keydown", (e) => {
+  if (document.activeElement && ["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
+  if (e.code === "Space") { e.preventDefault(); togglePlay(); }
+  if (e.code === "ArrowRight") { stopPlayback(); seekTo(idx + 1); }
+  if (e.code === "ArrowLeft") { stopPlayback(); seekTo(idx - 1); }
+});
+
+if (localStorage.getItem("dt_auth") === "ok") boot();
 </script>
 </body>
 </html>
