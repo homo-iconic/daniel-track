@@ -536,7 +536,7 @@ button:disabled { opacity: 0.35; pointer-events: none; }
         <h2 id="list-title">Motion</h2>
         <div class="mode-toggle" role="group" aria-label="Clip mode">
           <button type="button" id="mode-motion" class="on">Motion</button>
-          <button type="button" id="mode-all">All days</button>
+          <button type="button" id="mode-all" title="Every hop ≥0.5 m, including home fidgets">All</button>
         </div>
       </div>
       <div class="search-row">
@@ -732,18 +732,12 @@ async function loadClips(opts = {}) {
   if (soft) {
     if (!playing && activeClip >= 0 && activeClip < filtered.length) {
       const c = filtered[activeClip];
-      // If the active clip's tip moved (heartbeat), refresh route quietly when idle at end
       const pts = c.points || [];
       if (pts.length && currentPts.length &&
           pts[pts.length - 1][2] !== currentPts[currentPts.length - 1][2] &&
           idx >= currentPts.length - 1) {
         loadRoute(pts);
       }
-      renderList();
-    } else if (!playing && selectLatest) {
-      selectClip(filtered.length - 1, false);
-    } else {
-      renderList();
     }
     return;
   }
@@ -806,7 +800,7 @@ function applyFilter() {
   $("s-count").textContent = filtered.length;
   $("s-km").textContent = (shownDist / 1000).toFixed(shownDist >= 10000 ? 0 : 1);
   $("s-home").textContent = filtered.filter(c => c.home_related).length;
-  $("list-title").textContent = showAll ? "All days" : "Motion";
+  $("list-title").textContent = showAll ? "All motion" : "Motion";
   renderList();
 }
 
@@ -845,6 +839,7 @@ function makeClipEl(c, i) {
   d.className = "clip" + (c.home_related ? " home" : "") + (i === activeClip ? " active" : "");
   const pts = c.points || [];
   const endT = fmtTime(c.end);
+  const isHop = showAll || c.mode === "all";
   d.innerHTML = `
     <div class="clip-top">
       <span class="time">${fmtTime(c.start)}${c.duration_sec > 0 ? " – " + endT : ""}</span>
@@ -853,7 +848,7 @@ function makeClipEl(c, i) {
     <div class="meta">
       <span>${fmtDur(c.duration_sec)}</span>
       <span class="sep">·</span>
-      <span>${fmtDist(c.distance_m)}</span>
+      <span>${fmtDist(c.distance_m)}${isHop && c.distance_m > 0 ? " moved" : ""}</span>
       <span class="sep">·</span>
       <span>${(c.avg_mph || 0).toFixed(1)} avg</span>
       ${c.max_mph ? `<span class="sep">·</span><span>${c.max_mph.toFixed(1)} max</span>` : ""}
