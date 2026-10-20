@@ -68,12 +68,18 @@ final class AlertApp: NSObject, NSApplicationDelegate {
     }
 
     func startChime() {
-        sound = NSSound(named: NSSound.Name("Submarine"))
-        sound?.volume = 1.0
-        sound?.play()
-        timer = Timer.scheduledTimer(withTimeInterval: 2.4, repeats: true) { [weak self] _ in
+        // Soft tick; quieter + slower loop so it stays noticeable without being annoying
+        func playSoft() {
+            sound?.stop()
+            sound = NSSound(named: NSSound.Name("Tink"))
+            sound?.volume = 0.35
+            sound?.play()
+        }
+        playSoft()
+        timer = Timer.scheduledTimer(withTimeInterval: 4.5, repeats: true) { [weak self] _ in
             self?.sound?.stop()
-            self?.sound = NSSound(named: NSSound.Name("Submarine"))
+            self?.sound = NSSound(named: NSSound.Name("Tink"))
+            self?.sound?.volume = 0.35
             self?.sound?.play()
         }
     }
