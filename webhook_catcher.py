@@ -2,6 +2,8 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import urllib.request
+import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 from math import radians, sin, cos, sqrt, atan2
@@ -9,12 +11,13 @@ from math import radians, sin, cos, sqrt, atan2
 LOG = Path.home() / "track" / "master.jsonl"
 NTFY_TOPIC = "ZttLoc"
 
-# Home geofence (7135 Hollywood Blvd, 90046) — 30 m buffer
 HOME_LAT = 34.102029
 HOME_LON = -118.346478
 HOME_RADIUS_M = 30.0
 
-last = {}  # name -> (lat, lon, ts, acc, was_home)
+last = {}
+last_change = {}
+last_push = 0
 
 def haversine_m(lat1, lon1, lat2, lon2):
     R = 6371000.0
@@ -37,6 +40,22 @@ def ntfy(title, message):
     except Exception as e:
         print(f"  ntfy failed: {e}")
 
+def rebuild_and_push():
+    global last_push
+    try:
+        track = Path.home() / "track"
+        subprocess.run(["python3", "clip_processor.py"], cwd=track, check=True)
+        subprocess.run(["git", "add", "clips.json", "all_points.json"], cwd=track, check=True)
+        # Always commit (even if identical) so the site gets a heartbeat
+        subprocess.run(
+            ["git", "commit", "--allow-empty", "-m", f"auto-update {datetime.now().isoformat()}"],
+            cwd=track, check=True
+        )
+        subprocess.run(["git", "push"], cwd=track, check=True)
+        print("  → pushed to GitHub Pages")
+        last_push = time.time()
+    except Exception as e:
+        print(f"  rebuild/push failed: {e}")
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -65,6 +84,22 @@ class Handler(BaseHTTPRequestHandler):
         if lat is not None and lon is not None:
             home_flag = is_home(float(lat), float(lon))
 
+        stale_min = 0.0
+        is_stale = False
+        if lat is not None and lon is not None and "daniel" in name:
+            latf, lonf = float(lat), float(lon)
+            prev = last_change.get("daniel")
+            if prev is None:
+                last_change["daniel"] = (latf, lonf, now)
+            else:
+                prev_lat, prev_lon, prev_ts = prev
+                dist_since = haversine_m(prev_lat, prev_lon, latf, lonf)
+                if dist_since > 15:
+                    last_change["daniel"] = (latf, lonf, now)
+                else:
+                    stale_min = (now - prev_ts).total_seconds() / 60.0
+                    is_stale = stale_min >= 5
+
         entry = {
             "ts": now_s,
             "name": name,
@@ -72,12 +107,17 @@ class Handler(BaseHTTPRequestHandler):
             "lon": lon,
             "accuracy": acc,
             "home": home_flag,
+            "stale": is_stale,
+            "stale_min": round(stale_min, 1) if is_stale else 0,
             "raw": data
         }
         with LOG.open("a") as f:
             f.write(json.dumps(entry) + "\n")
 
-        print(f"\n{now_s}  {name}  {lat},{lon}  acc={acc}  home={home_flag}")
+        stale_txt = ""
+        if is_stale:
+            stale_txt = f"  \033[91mSTALE for {stale_min:.0f} min\033[0m"
+        print(f"\n{now_s}  {name}  {lat},{lon}  acc={acc}  home={home_flag}{stale_txt}")
 
         if "daniel" in name and lat is not None and lon is not None:
             lat, lon = float(lat), float(lon)
@@ -89,24 +129,19 @@ class Handler(BaseHTTPRequestHandler):
                 plat, plon, pts, pacc, prev_home = prev
                 dist = haversine_m(plat, plon, lat, lon)
                 dt = (now - pts).total_seconds()
-                speed = (dist / dt) if dt > 0 else 0  # m/s
+                speed = (dist / dt) if dt > 0 else 0
 
                 print(f"  moved {dist:.1f} m in {dt:.0f}s  ({speed:.1f} m/s)  prev_home={prev_home} curr_home={currently_home}")
 
-                # Left home alert (primary notification)
                 if prev_home and not currently_home:
                     ntfy("Left home", f"{dist:.0f} m ({dist*3.28:.0f} ft)\n{lat:.5f},{lon:.5f}")
 
-                # Small-motion suppression inside home
-                # Only alert on movement if NOT both points are inside home, or if large jump
                 if dist >= 5 and not (prev_home and currently_home):
                     ntfy("Daniel moved", f"{dist:.0f} m ({dist*3.28:.0f} ft)\n{lat:.5f},{lon:.5f}")
 
-                # Possible teleport / spoof (always alert)
                 if dist > 100 and speed > 30:
                     ntfy("Possible spoof", f"Jump {dist:.0f} m at {speed:.0f} m/s")
 
-                # Accuracy suddenly worse (always alert)
                 if pacc and acc and acc > pacc * 3 and acc > 50:
                     ntfy("Accuracy drop", f"Accuracy {pacc:.0f}m → {acc:.0f}m")
 
@@ -114,6 +149,14 @@ class Handler(BaseHTTPRequestHandler):
                 ntfy("Low accuracy", f"Accuracy {acc:.0f} m")
 
             last["daniel"] = (lat, lon, now, acc, currently_home)
+
+            # Terminal print is instant. The public site only updates after rebuild+git push
+            # + GitHub Actions (~30–60s). Throttle pushes to at most once per 30s.
+            since = time.time() - last_push
+            if since > 30 or last_push == 0:
+                rebuild_and_push()
+            else:
+                print(f"  → logged locally; next site push in {30 - since:.0f}s")
 
         self.send_response(200)
         self.end_headers()

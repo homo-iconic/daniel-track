@@ -524,6 +524,7 @@ button:disabled { opacity: 0.35; pointer-events: none; }
       <span class="pill hide-sm">Clips <b id="stat-clips">—</b></span>
       <span class="pill hide-sm">Distance <b id="stat-dist">—</b></span>
       <span class="pill">Last <b id="stat-last">—</b></span>
+      <span class="pill" id="live-pill" title="Viewer polls GitHub Pages for new pushes">Live <b id="stat-live">…</b></span>
       <button type="button" class="pill-btn" id="btn-lastping" title="Jump to most recent ping">Last ping</button>
       <button type="button" class="pill-btn" id="btn-fit" title="Fit route in view">Fit</button>
     </div>
@@ -619,7 +620,8 @@ function checkPw(e) {
 function boot() {
   document.getElementById("login").classList.add("hidden");
   document.getElementById("app").classList.add("show");
-  loadClips();
+  loadClips({ selectLatest: true });
+  startLivePoll();
 }
 
 /* ——— State ——— */
@@ -630,6 +632,9 @@ let activeClip = -1;
 let paceActual = false;
 let satOn = true;
 let pathCum = [];
+let lastDataSignature = "";
+let livePollTimer = null;
+const LIVE_POLL_MS = 45000;
 
 const $ = (id) => document.getElementById(id);
 
@@ -690,19 +695,89 @@ function buildCum(pts) {
 }
 
 /* ——— Data ——— */
-async function loadClips() {
+function dataSignature(list) {
+  if (!list.length) return "empty";
+  const last = list[list.length - 1];
+  const pts = last.points || [];
+  const tip = pts.length ? pts[pts.length - 1][2] : last.end;
+  return list.length + "|" + tip + "|" + (last.distance_m || 0);
+}
+
+async function loadClips(opts = {}) {
+  const selectLatest = !!opts.selectLatest;
+  const soft = !!opts.soft;
   const url = (showAll ? "all_points.json" : "clips.json") + "?t=" + Date.now();
+  let next;
   try {
     const r = await fetch(url, { cache: "no-store" });
     if (!r.ok) throw new Error("fetch");
-    clips = await r.json();
+    next = await r.json();
   } catch {
-    $("cliplist").innerHTML = '<div class="empty">No data yet. Waiting for the catcher.</div>';
+    if (!soft) $("cliplist").innerHTML = '<div class="empty">No data yet. Waiting for the catcher.</div>';
+    setLiveStatus("offline");
     return;
   }
+
+  const sig = dataSignature(next);
+  const changed = sig !== lastDataSignature;
+  clips = next;
+  lastDataSignature = sig;
   updateGlobalStats();
   applyFilter();
-  if (filtered.length) selectClip(filtered.length - 1, false);
+  setLiveStatus(changed && soft ? "updated" : "ok");
+
+  if (!filtered.length) return;
+
+  // Soft poll: refresh list/stats only; don't yank the map while playing or scrubbing
+  if (soft) {
+    if (!playing && activeClip >= 0 && activeClip < filtered.length) {
+      const c = filtered[activeClip];
+      // If the active clip's tip moved (heartbeat), refresh route quietly when idle at end
+      const pts = c.points || [];
+      if (pts.length && currentPts.length &&
+          pts[pts.length - 1][2] !== currentPts[currentPts.length - 1][2] &&
+          idx >= currentPts.length - 1) {
+        loadRoute(pts);
+      }
+      renderList();
+    } else if (!playing && selectLatest) {
+      selectClip(filtered.length - 1, false);
+    } else {
+      renderList();
+    }
+    return;
+  }
+
+  if (selectLatest || activeClip < 0) selectClip(filtered.length - 1, false);
+  else if (activeClip < filtered.length) selectClip(activeClip, false);
+  else selectClip(filtered.length - 1, false);
+}
+
+function setLiveStatus(state) {
+  const el = $("stat-live");
+  if (!el) return;
+  if (state === "updated") {
+    el.textContent = "new";
+    el.style.color = "var(--home)";
+    setTimeout(() => { if (el.textContent === "new") setLiveStatus("ok"); }, 4000);
+  } else if (state === "offline") {
+    el.textContent = "err";
+    el.style.color = "var(--danger)";
+  } else {
+    el.textContent = "on";
+    el.style.color = "var(--home)";
+  }
+}
+
+function startLivePoll() {
+  clearInterval(livePollTimer);
+  livePollTimer = setInterval(() => {
+    if (document.hidden) return;
+    loadClips({ soft: true });
+  }, LIVE_POLL_MS);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) loadClips({ soft: true });
+  });
 }
 
 function updateGlobalStats() {
@@ -1080,16 +1155,18 @@ $("filter").oninput = applyFilter;
 $("mode-motion").onclick = async () => {
   if (!showAll) return;
   showAll = false;
+  lastDataSignature = "";
   $("mode-motion").classList.add("on");
   $("mode-all").classList.remove("on");
-  await loadClips();
+  await loadClips({ selectLatest: true });
 };
 $("mode-all").onclick = async () => {
   if (showAll) return;
   showAll = true;
+  lastDataSignature = "";
   $("mode-all").classList.add("on");
   $("mode-motion").classList.remove("on");
-  await loadClips();
+  await loadClips({ selectLatest: true });
 };
 
 $("map-sat").onclick = () => setMapStyle(true);
