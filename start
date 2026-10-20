@@ -1,0 +1,19 @@
+#!/bin/bash
+cd "$(dirname "$0")"
+pkill -f "webhook_catcher.py" 2>/dev/null || true
+pkill -f "webhook_watchdog.py" 2>/dev/null || true
+rm -f catcher.pid watchdog.pid watchdog.pause
+
+nohup python3 webhook_watchdog.py >> watchdog.log 2>&1 &
+echo $! > watchdog.pid
+echo "Watchdog PID $(cat watchdog.pid)"
+
+cleanup() {
+  touch watchdog.pause
+  pkill -f "webhook_watchdog.py" 2>/dev/null || true
+  rm -f watchdog.pid watchdog.pause
+}
+trap cleanup EXIT INT TERM
+
+echo "Starting webhook catcher (Ctrl-C to stop)..."
+exec python3 webhook_catcher.py

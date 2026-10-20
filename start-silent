@@ -1,0 +1,17 @@
+#!/bin/bash
+cd "$(dirname "$0")"
+pkill -f "webhook_catcher.py" 2>/dev/null || true
+pkill -f "webhook_watchdog.py" 2>/dev/null || true
+rm -f catcher.pid watchdog.pid watchdog.pause
+
+echo "Starting webhook catcher in background..."
+nohup python3 webhook_catcher.py > catcher.log 2>&1 &
+echo $! > catcher.pid
+
+echo "Starting webhook watchdog..."
+nohup python3 webhook_watchdog.py >> watchdog.log 2>&1 &
+echo $! > watchdog.pid
+
+echo "Catcher PID $(cat catcher.pid) · Watchdog PID $(cat watchdog.pid)"
+echo "Logs: catcher.log / watchdog.log"
+echo "Stop with: ./stop"

@@ -1,0 +1,22 @@
+#!/bin/bash
+cd "$(dirname "$0")"
+
+# Pause watchdog first so intentional stop doesn't alarm
+touch watchdog.pause
+pkill -f "webhook_watchdog.py" 2>/dev/null || true
+rm -f watchdog.pid
+
+if [ -f catcher.pid ]; then
+  PID=$(cat catcher.pid)
+  if kill "$PID" 2>/dev/null; then
+    echo "Stopped catcher (PID $PID)"
+  else
+    echo "Process $PID not running"
+  fi
+  rm -f catcher.pid
+else
+  pkill -f "webhook_catcher.py" 2>/dev/null && echo "Stopped catcher" || echo "Nothing running"
+fi
+
+rm -f watchdog.pause
+echo "Stopped watchdog"
