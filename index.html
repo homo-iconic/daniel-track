@@ -6,11 +6,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Daniel Track">
+<meta name="apple-mobile-web-app-title" content="Daddy Tracker">
 <meta name="theme-color" content="#0a0a0b">
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230a0a0b'/%3E%3Ccircle cx='90' cy='90' r='28' fill='none' stroke='%230A84FF' stroke-width='10'/%3E%3Ccircle cx='90' cy='90' r='10' fill='%230A84FF'/%3E%3C/svg%3E">
-<title>Daniel Track</title>
+<title>Daddy Tracker</title>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet"/>
 <style>
@@ -298,8 +298,8 @@ button:disabled { opacity: 0.35; pointer-events: none; }
 .hud-row .k { color: var(--muted); }
 .hud-row .v { color: var(--text); font-weight: 600; font-size: 13px; }
 .hud-title {
-  font-size: 10px; font-weight: 600; text-transform: uppercase;
-  letter-spacing: 0.06em; color: var(--faint); margin-bottom: 6px;
+  font-size: 12px; font-weight: 600; letter-spacing: -0.01em;
+  color: var(--text); margin-bottom: 8px;
 }
 
 /* Transport bar */
@@ -502,7 +502,7 @@ button:disabled { opacity: 0.35; pointer-events: none; }
 <div id="login">
   <div class="login-card">
     <div class="login-mark"><span></span></div>
-    <h1>Daniel Track</h1>
+    <h1>Daddy Tracker</h1>
     <p>Private location timeline</p>
     <form onsubmit="return checkPw(event)">
       <input type="password" id="pw" placeholder="Password" autocomplete="current-password" autofocus>
@@ -518,13 +518,13 @@ button:disabled { opacity: 0.35; pointer-events: none; }
   <div class="topbar">
     <div class="brand-chip">
       <span class="brand-dot"></span>
-      <strong>Daniel Track</strong>
+      <strong>Daddy Tracker</strong>
     </div>
     <div class="status-cluster">
-      <span class="pill hide-sm">Clips <b id="stat-clips">—</b></span>
-      <span class="pill hide-sm">Distance <b id="stat-dist">—</b></span>
-      <span class="pill">Last <b id="stat-last">—</b></span>
-      <span class="pill" id="live-pill" title="Viewer polls GitHub Pages for new pushes">Live <b id="stat-live">…</b></span>
+      <span class="pill hide-sm">Moves <b id="stat-clips">—</b></span>
+      <span class="pill hide-sm">Total <b id="stat-dist">—</b></span>
+      <span class="pill">Updated <b id="stat-last">—</b></span>
+      <span class="pill" id="live-pill" title="Viewer polls GitHub Pages for new pushes">Sync <b id="stat-live">…</b></span>
       <button type="button" class="pill-btn" id="btn-lastping" title="Jump to most recent ping">Last ping</button>
       <button type="button" class="pill-btn" id="btn-fit" title="Fit route in view">Fit</button>
     </div>
@@ -556,11 +556,10 @@ button:disabled { opacity: 0.35; pointer-events: none; }
   </button>
 
   <div class="hud" id="hud">
-    <div class="hud-title">Now</div>
-    <div class="hud-row"><span class="k">Clock</span><span class="v" id="h-time">—</span></div>
+    <div class="hud-title">This clip</div>
+    <div class="hud-row"><span class="k">Time</span><span class="v" id="h-time">—</span></div>
     <div class="hud-row"><span class="k">Speed</span><span class="v" id="h-speed">—</span></div>
-    <div class="hud-row"><span class="k">Done</span><span class="v" id="h-prog">—</span></div>
-    <div class="hud-row"><span class="k">Traveled</span><span class="v" id="h-along">—</span></div>
+    <div class="hud-row"><span class="k">Covered</span><span class="v" id="h-along">—</span></div>
   </div>
 
   <div class="transport">
@@ -595,7 +594,7 @@ button:disabled { opacity: 0.35; pointer-events: none; }
         <input type="range" id="speed" min="0.25" max="8" step="0.25" value="1">
         <span id="speedval">1×</span>
       </div>
-      <div class="hint" id="pace-hint">Fixed: constant step rate. Actual: waits real GPS gaps (× speed). Not the same as 1×.</div>
+      <div class="hint" id="pace-hint">Fixed: smooth glide between pings (~0.7s each at 1×).</div>
     </div>
   </div>
 </div>
@@ -744,9 +743,9 @@ async function loadClips(opts = {}) {
     return;
   }
 
-  if (selectLatest || activeClip < 0) selectClip(filtered.length - 1, false);
+  if (selectLatest || activeClip < 0) selectClip(0, false);
   else if (activeClip < filtered.length) selectClip(activeClip, false);
-  else selectClip(filtered.length - 1, false);
+  else selectClip(0, false);
 }
 
 function setLiveStatus(state) {
@@ -798,6 +797,8 @@ function applyFilter() {
       String(c.avg_mph), String(Math.round(c.distance_m))].join(" ").toLowerCase();
     return blob.includes(q);
   });
+  // Newest → oldest for days and clips
+  filtered.sort((a, b) => new Date(b.start) - new Date(a.start));
   const shownDist = filtered.reduce((a, c) => a + (c.distance_m || 0), 0);
   $("s-count").textContent = filtered.length;
   $("s-km").textContent = fmtDist(shownDist);
@@ -808,13 +809,13 @@ function applyFilter() {
 
 function ensureExpandedDays(dayLabels) {
   if (!dayLabels.length) { expandedDays = new Set(); return; }
+  // dayLabels[0] is newest after sort
   if (expandedDays == null) {
-    expandedDays = new Set([dayLabels[dayLabels.length - 1]]);
+    expandedDays = new Set([dayLabels[0]]);
     return;
   }
-  // Keep prior expansions; always keep newest day open if empty
   const next = new Set([...expandedDays].filter(d => dayLabels.includes(d)));
-  if (!next.size) next.add(dayLabels[dayLabels.length - 1]);
+  if (!next.size) next.add(dayLabels[0]);
   expandedDays = next;
 }
 
@@ -1064,22 +1065,53 @@ function updateTrailAt(t) {
   });
 }
 
+function pathSpanM(pts) {
+  if (pts.length < 2) return 0;
+  let minLat = pts[0][0], maxLat = pts[0][0], minLon = pts[0][1], maxLon = pts[0][1];
+  pts.forEach(p => {
+    minLat = Math.min(minLat, p[0]); maxLat = Math.max(maxLat, p[0]);
+    minLon = Math.min(minLon, p[1]); maxLon = Math.max(maxLon, p[1]);
+  });
+  return Math.max(
+    haversine(minLat, minLon, maxLat, minLon),
+    haversine(minLat, minLon, minLat, maxLon)
+  );
+}
+
 function fitRoute(animate) {
   if (!map || currentPts.length < 1) return;
+  const dur = animate ? 650 : 0;
   if (currentPts.length === 1) {
-    map.easeTo({ center: [currentPts[0][1], currentPts[0][0]], zoom: 17, duration: animate ? 600 : 0 });
+    map.easeTo({ center: [currentPts[0][1], currentPts[0][0]], zoom: 18.5, duration: dur });
     return;
   }
+  const span = pathSpanM(currentPts);
+  // Short clips: push in tight. Longer clips: fit path but don't pull out to city scale.
+  let maxZoom = 18.8;
+  let minZoom = 13;
+  let padding = 56;
+  if (span < 60) { maxZoom = 19.2; padding = 48; }
+  else if (span < 150) { maxZoom = 18.8; padding = 56; }
+  else if (span < 400) { maxZoom = 17.8; padding = 64; }
+  else if (span < 1200) { maxZoom = 16.5; padding = 72; }
+  else { maxZoom = 15.2; minZoom = 13.5; padding = 80; }
+
   const bounds = new maplibregl.LngLatBounds();
   currentPts.forEach(p => bounds.extend([p[1], p[0]]));
-  map.fitBounds(bounds, { padding: 72, maxZoom: 17, duration: animate ? 700 : 0 });
+  map.fitBounds(bounds, { padding, maxZoom, minZoom, duration: dur });
 }
 
 function selectClip(i, userClick) {
   activeClip = i;
-  document.querySelectorAll(".clip").forEach((el, j) => el.classList.toggle("active", j === i));
   const c = filtered[i];
   if (!c) return;
+  const day = fmtDay(c.start);
+  if (expandedDays && !expandedDays.has(day)) {
+    expandedDays.add(day);
+    renderList();
+  } else {
+    document.querySelectorAll(".clip").forEach((el, j) => el.classList.toggle("active", j === i));
+  }
   const pts = c.points || [];
   if (!map) {
     currentPts = pts;
@@ -1104,12 +1136,10 @@ function updateHUDAt(t) {
     along += haversine(currentPts[s.i][0], currentPts[s.i][1], s.lat, s.lon);
   }
   const total = pathCum[pathCum.length - 1] || 0;
-  const pct = currentPts.length > 1 ? Math.round((t / (currentPts.length - 1)) * 100) : 100;
 
   $("h-time").textContent = fmtTime(p[2]);
   $("h-speed").textContent = spd < 0.05 ? "—" : spd.toFixed(1) + " mph";
-  $("h-prog").textContent = pct + "%";
-  $("h-along").textContent = fmtDist(along) + (total ? " of " + fmtDist(total) : "");
+  $("h-along").textContent = fmtDist(along) + (total ? " / " + fmtDist(total) : "");
 
   $("progress").value = t;
   $("t-cur").textContent = fmtDur(clipClock(currentPts, i));
@@ -1246,7 +1276,7 @@ function showLastPing() {
     .setPopup(popup)
     .addTo(map);
   popup.addTo(map);
-  map.easeTo({ center: [p[1], p[0]], zoom: Math.max(map.getZoom(), 16.5), duration: 700 });
+  map.easeTo({ center: [p[1], p[0]], zoom: Math.max(map.getZoom(), 18.5), duration: 700 });
 }
 
 /* ——— Events ——— */
@@ -1286,13 +1316,13 @@ $("pace-fixed").onclick = () => {
   paceActual = false;
   $("pace-fixed").classList.add("on");
   $("pace-actual").classList.remove("on");
-  $("pace-hint").textContent = "Fixed: constant step rate (≈320 ms ÷ speed). Best for quick review.";
+  $("pace-hint").textContent = "Fixed: smooth glide between pings (~0.7s each at 1×).";
 };
 $("pace-actual").onclick = () => {
   paceActual = true;
   $("pace-actual").classList.add("on");
   $("pace-fixed").classList.remove("on");
-  $("pace-hint").textContent = "Actual: waits real gaps between GPS pings (÷ speed). 1× ≈ wall-clock; not the same as Fixed 1×.";
+  $("pace-hint").textContent = "Actual: glide timed to real gaps between pings (capped so long stalls don’t drag).";
 };
 
 $("btn-lastping").onclick = showLastPing;
@@ -1302,8 +1332,8 @@ $("sidebar-toggle").onclick = () => $("sidebar").classList.toggle("collapsed");
 document.addEventListener("keydown", (e) => {
   if (document.activeElement && ["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
   if (e.code === "Space") { e.preventDefault(); togglePlay(); }
-  if (e.code === "ArrowRight") { stopPlayback(); seekTo(idx + 1); }
-  if (e.code === "ArrowLeft") { stopPlayback(); seekTo(idx - 1); }
+  if (e.code === "ArrowRight") { stopPlayback(); seekTo(Math.floor(playT) + 1); }
+  if (e.code === "ArrowLeft") { stopPlayback(); seekTo(Math.ceil(playT) - 1); }
 });
 
 if (localStorage.getItem("dt_auth") === "ok") boot();
