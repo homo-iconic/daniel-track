@@ -215,22 +215,32 @@ button:disabled { opacity: 0.35; pointer-events: none; }
   text-align: center;
 }
 .stat .v { display: block; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.stat .k { display: block; font-size: 10px; color: var(--faint); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.04em; }
+.stat .k { display: block; font-size: 10px; color: var(--faint); margin-top: 2px; letter-spacing: 0.01em; }
 
 #cliplist { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.day-group { border-bottom: 1px solid var(--border); }
 .day-header {
   position: sticky; top: 0; z-index: 2;
-  padding: 8px 14px;
-  font-size: 11px; font-weight: 600;
-  color: var(--muted); letter-spacing: 0.02em;
-  background: rgba(12,12,14,0.92);
+  padding: 10px 12px 10px 10px;
+  font-size: 12px; font-weight: 600;
+  color: var(--text); letter-spacing: -0.01em;
+  background: rgba(12,12,14,0.94);
   backdrop-filter: blur(12px);
-  display: flex; justify-content: space-between; align-items: center;
-  border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  cursor: pointer; user-select: none;
 }
-.day-header .day-meta { font-weight: 500; color: var(--faint); font-variant-numeric: tabular-nums; }
+.day-header:hover { background: rgba(22,22,26,0.96); }
+.day-header .day-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.day-header .chev {
+  width: 14px; height: 14px; flex-shrink: 0; color: var(--muted);
+  transition: transform .18s ease;
+}
+.day-group.collapsed .chev { transform: rotate(-90deg); }
+.day-header .day-meta { font-weight: 500; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.day-clips { display: block; }
+.day-group.collapsed .day-clips { display: none; }
 .clip {
-  padding: 12px 14px; cursor: pointer;
+  padding: 11px 14px 11px 16px; cursor: pointer;
   border-bottom: 1px solid rgba(255,255,255,0.04);
   border-left: 2px solid transparent;
   transition: background .12s;
@@ -411,22 +421,12 @@ button:disabled { opacity: 0.35; pointer-events: none; }
 
 /* Custom markers */
 .playhead {
-  width: 12px; height: 12px; border-radius: 50%;
+  width: 11px; height: 11px; border-radius: 50%;
   background: #fff;
-  border: 2px solid var(--accent);
-  box-shadow: 0 0 0 3px rgba(10,132,255,0.35), 0 2px 6px rgba(0,0,0,0.4);
+  border: 2px solid rgba(255,255,255,0.95);
+  box-shadow: 0 0 0 2px rgba(10,132,255,0.55), 0 2px 8px rgba(0,0,0,0.45);
   position: relative;
-}
-.playhead.live::after {
-  content: "";
-  position: absolute; inset: -5px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(10,132,255,0.7);
-  animation: ring 1.4s ease-out infinite;
-}
-@keyframes ring {
-  0% { transform: scale(0.7); opacity: 1; }
-  100% { transform: scale(1.6); opacity: 0; }
+  will-change: transform;
 }
 .ping-dot {
   width: 14px; height: 14px; border-radius: 50%;
@@ -543,9 +543,9 @@ button:disabled { opacity: 0.35; pointer-events: none; }
         <input type="search" id="filter" placeholder="Filter date, home…" enterkeyhint="search">
       </div>
       <div class="stats-row">
-        <div class="stat"><span class="v" id="s-count">0</span><span class="k">Shown</span></div>
-        <div class="stat"><span class="v" id="s-km">0</span><span class="k">km</span></div>
-        <div class="stat"><span class="v" id="s-home">0</span><span class="k">Home</span></div>
+        <div class="stat"><span class="v" id="s-count">0</span><span class="k">moves</span></div>
+        <div class="stat"><span class="v" id="s-km">0</span><span class="k">distance</span></div>
+        <div class="stat"><span class="v" id="s-home">0</span><span class="k">near home</span></div>
       </div>
     </div>
     <div id="cliplist"></div>
@@ -556,12 +556,11 @@ button:disabled { opacity: 0.35; pointer-events: none; }
   </button>
 
   <div class="hud" id="hud">
-    <div class="hud-title">Telemetry</div>
-    <div class="hud-row"><span class="k">Time</span><span class="v" id="h-time">—</span></div>
+    <div class="hud-title">Now</div>
+    <div class="hud-row"><span class="k">Clock</span><span class="v" id="h-time">—</span></div>
     <div class="hud-row"><span class="k">Speed</span><span class="v" id="h-speed">—</span></div>
-    <div class="hud-row"><span class="k">Progress</span><span class="v" id="h-prog">—</span></div>
-    <div class="hud-row"><span class="k">Along path</span><span class="v" id="h-along">—</span></div>
-    <div class="hud-row"><span class="k">Coords</span><span class="v" id="h-coords" style="font-family:var(--mono);font-size:11px;font-weight:500">—</span></div>
+    <div class="hud-row"><span class="k">Done</span><span class="v" id="h-prog">—</span></div>
+    <div class="hud-row"><span class="k">Traveled</span><span class="v" id="h-along">—</span></div>
   </div>
 
   <div class="transport">
@@ -627,13 +626,16 @@ function boot() {
 /* ——— State ——— */
 let map, playMarker, startMarker, endMarker, pingMarker;
 let clips = [], filtered = [], showAll = false;
-let currentPts = [], idx = 0, playing = false, timer = null;
+let currentPts = [], idx = 0, playing = false;
 let activeClip = -1;
 let paceActual = false;
 let satOn = true;
 let pathCum = [];
 let lastDataSignature = "";
 let livePollTimer = null;
+let expandedDays = null; // Set of day labels; null = init to newest only
+let rafId = null;
+let playT = 0; // continuous index along path for smooth playback
 const LIVE_POLL_MS = 45000;
 
 const $ = (id) => document.getElementById(id);
@@ -798,10 +800,22 @@ function applyFilter() {
   });
   const shownDist = filtered.reduce((a, c) => a + (c.distance_m || 0), 0);
   $("s-count").textContent = filtered.length;
-  $("s-km").textContent = (shownDist / 1000).toFixed(shownDist >= 10000 ? 0 : 1);
+  $("s-km").textContent = fmtDist(shownDist);
   $("s-home").textContent = filtered.filter(c => c.home_related).length;
   $("list-title").textContent = showAll ? "All motion" : "Motion";
   renderList();
+}
+
+function ensureExpandedDays(dayLabels) {
+  if (!dayLabels.length) { expandedDays = new Set(); return; }
+  if (expandedDays == null) {
+    expandedDays = new Set([dayLabels[dayLabels.length - 1]]);
+    return;
+  }
+  // Keep prior expansions; always keep newest day open if empty
+  const next = new Set([...expandedDays].filter(d => dayLabels.includes(d)));
+  if (!next.size) next.add(dayLabels[dayLabels.length - 1]);
+  expandedDays = next;
 }
 
 function renderList() {
@@ -811,51 +825,71 @@ function renderList() {
     el.innerHTML = '<div class="empty">No clips match.</div>';
     return;
   }
-  let lastDay = "";
-  let dayBucket = [];
-  const flushDay = (dayLabel) => {
-    if (!dayBucket.length) return;
-    const dist = dayBucket.reduce((a, x) => a + (x.c.distance_m || 0), 0);
-    const h = document.createElement("div");
-    h.className = "day-header";
-    h.innerHTML = `<span>${dayLabel}</span><span class="day-meta">${dayBucket.length} · ${fmtDist(dist)}</span>`;
-    el.appendChild(h);
-    dayBucket.forEach(({ c, i }) => el.appendChild(makeClipEl(c, i)));
-    dayBucket = [];
-  };
+
+  const groups = [];
+  let cur = null;
   filtered.forEach((c, i) => {
     const day = fmtDay(c.start);
-    if (day !== lastDay) {
-      flushDay(lastDay);
-      lastDay = day;
+    if (!cur || cur.day !== day) {
+      cur = { day, items: [] };
+      groups.push(cur);
     }
-    dayBucket.push({ c, i });
+    cur.items.push({ c, i });
   });
-  flushDay(lastDay);
+
+  ensureExpandedDays(groups.map(g => g.day));
+
+  groups.forEach((g) => {
+    const dist = g.items.reduce((a, x) => a + (x.c.distance_m || 0), 0);
+    const open = expandedDays.has(g.day);
+    const wrap = document.createElement("div");
+    wrap.className = "day-group" + (open ? "" : " collapsed");
+    wrap.dataset.day = g.day;
+
+    const h = document.createElement("div");
+    h.className = "day-header";
+    h.innerHTML = `
+      <span class="day-left">
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg>
+        <span>${g.day}</span>
+      </span>
+      <span class="day-meta">${g.items.length} move${g.items.length === 1 ? "" : "s"} · ${fmtDist(dist)}</span>`;
+    h.onclick = () => {
+      if (expandedDays.has(g.day)) expandedDays.delete(g.day);
+      else expandedDays.add(g.day);
+      renderList();
+    };
+    wrap.appendChild(h);
+
+    const body = document.createElement("div");
+    body.className = "day-clips";
+    g.items.forEach(({ c, i }) => body.appendChild(makeClipEl(c, i)));
+    wrap.appendChild(body);
+    el.appendChild(wrap);
+  });
+
+  // Keep active clip visible when its day is open
+  const active = el.querySelector(".clip.active");
+  if (active) active.scrollIntoView({ block: "nearest" });
 }
 
 function makeClipEl(c, i) {
   const d = document.createElement("div");
   d.className = "clip" + (c.home_related ? " home" : "") + (i === activeClip ? " active" : "");
-  const pts = c.points || [];
-  const endT = fmtTime(c.end);
-  const isHop = showAll || c.mode === "all";
+  const endBit = c.duration_sec > 45 ? " – " + fmtTime(c.end) : "";
+  const moved = fmtDist(c.distance_m);
+  const took = c.duration_sec > 0 ? fmtDur(c.duration_sec) : "ping";
   d.innerHTML = `
     <div class="clip-top">
-      <span class="time">${fmtTime(c.start)}${c.duration_sec > 0 ? " – " + endT : ""}</span>
+      <span class="time">${fmtTime(c.start)}${endBit}</span>
       ${c.home_related ? '<span class="badge">Home</span>' : ""}
     </div>
     <div class="meta">
-      <span>${fmtDur(c.duration_sec)}</span>
+      <span>moved ${moved}</span>
       <span class="sep">·</span>
-      <span>${fmtDist(c.distance_m)}${isHop && c.distance_m > 0 ? " moved" : ""}</span>
-      <span class="sep">·</span>
-      <span>${(c.avg_mph || 0).toFixed(1)} avg</span>
-      ${c.max_mph ? `<span class="sep">·</span><span>${c.max_mph.toFixed(1)} max</span>` : ""}
-      <span class="sep">·</span>
-      <span>${pts.length} pts</span>
+      <span>${took}</span>
     </div>`;
-  d.onclick = () => selectClip(i, true);
+  d.onclick = (e) => { e.stopPropagation(); selectClip(i, true); };
   return d;
 }
 
@@ -903,14 +937,9 @@ function initMap() {
       data: { type: "Feature", geometry: { type: "LineString", coordinates: [] } }
     });
     map.addLayer({
-      id: "route-glow", type: "line", source: "route",
-      layout: { "line-cap": "round", "line-join": "round" },
-      paint: { "line-color": "#0a84ff", "line-width": 8, "line-opacity": 0.25 }
-    });
-    map.addLayer({
       id: "route-line", type: "line", source: "route",
       layout: { "line-cap": "round", "line-join": "round" },
-      paint: { "line-color": "#5ac8fa", "line-width": 3, "line-opacity": 0.95 }
+      paint: { "line-color": "#ffffff", "line-width": 2, "line-opacity": 0.28 }
     });
     map.addSource("trail", {
       type: "geojson",
@@ -919,7 +948,7 @@ function initMap() {
     map.addLayer({
       id: "trail-line", type: "line", source: "trail",
       layout: { "line-cap": "round", "line-join": "round" },
-      paint: { "line-color": "#ffffff", "line-width": 3, "line-opacity": 0.85 }
+      paint: { "line-color": "#ffffff", "line-width": 2.5, "line-opacity": 0.92 }
     });
     loadRoute(currentPts);
   });
@@ -940,10 +969,23 @@ function endpointEl(kind) {
   return el;
 }
 
+function clearPingMarker() {
+  if (pingMarker) {
+    pingMarker.remove();
+    pingMarker = null;
+  }
+}
+
+function setEndpointVisibility(show) {
+  if (startMarker) startMarker.getElement().style.display = show ? "" : "none";
+  if (endMarker) endMarker.getElement().style.display = show ? "" : "none";
+}
+
 function loadRoute(pts) {
   currentPts = pts;
   pathCum = buildCum(pts);
   idx = 0;
+  playT = 0;
   stopPlayback();
 
   if (!map) { initMap(); return; }
@@ -952,10 +994,10 @@ function loadRoute(pts) {
   if (map.getSource("route")) {
     map.getSource("route").setData({
       type: "Feature",
-      geometry: { type: "LineString", coordinates: coords.length ? coords : [] }
+      geometry: { type: "LineString", coordinates: coords.length >= 2 ? coords : [] }
     });
   }
-  updateTrail(0);
+  updateTrailAt(0);
 
   if (startMarker) { startMarker.remove(); startMarker = null; }
   if (endMarker) { endMarker.remove(); endMarker = null; }
@@ -968,22 +1010,54 @@ function loadRoute(pts) {
     endMarker = new maplibregl.Marker({ element: endpointEl("end"), anchor: "center" })
       .setLngLat([last[1], last[0]]).addTo(map);
   }
+  setEndpointVisibility(true);
 
   $("progress").max = Math.max(0, pts.length - 1);
   $("progress").value = 0;
+  $("progress").step = "any";
   $("t-end").textContent = fmtDur(pts.length ? clipClock(pts, pts.length - 1) : 0);
 
   if (pts.length) {
     fitRoute(false);
-    centerOn(0, false);
-    updateHUD();
+    setPlayheadLatLon(pts[0][0], pts[0][1], false);
+    updateHUDAt(0);
     $("hud").classList.add("visible");
   }
 }
 
-function updateTrail(i) {
-  if (!map || !map.getSource("trail")) return;
-  const coords = currentPts.slice(0, i + 1).map(p => [p[1], p[0]]);
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function sampleAt(t) {
+  if (!currentPts.length) return null;
+  if (currentPts.length === 1 || t <= 0) return { lat: currentPts[0][0], lon: currentPts[0][1], i: 0, f: 0 };
+  const max = currentPts.length - 1;
+  if (t >= max) {
+    const p = currentPts[max];
+    return { lat: p[0], lon: p[1], i: max, f: 0 };
+  }
+  const i = Math.floor(t);
+  const f = t - i;
+  const a = currentPts[i], b = currentPts[i + 1];
+  return {
+    lat: lerp(a[0], b[0], f),
+    lon: lerp(a[1], b[1], f),
+    i, f
+  };
+}
+
+function setPlayheadLatLon(lat, lon, follow) {
+  if (!map || !playMarker) return;
+  playMarker.setLngLat([lon, lat]);
+  if (follow) map.setCenter([lon, lat]);
+}
+
+function updateTrailAt(t) {
+  if (!map || !map.getSource("trail") || !currentPts.length) return;
+  const s = sampleAt(t);
+  const coords = currentPts.slice(0, s.i + 1).map(p => [p[1], p[0]]);
+  if (s.f > 0.001 && s.i < currentPts.length - 1) {
+    coords.push([s.lon, s.lat]);
+  }
   map.getSource("trail").setData({
     type: "Feature",
     geometry: { type: "LineString", coordinates: coords.length >= 2 ? coords : [] }
@@ -1018,34 +1092,31 @@ function selectClip(i, userClick) {
   }
 }
 
-function centerOn(i, smooth) {
-  if (!map || !playMarker || !currentPts[i]) return;
-  const p = currentPts[i];
-  playMarker.setLngLat([p[1], p[0]]);
-  if (smooth) map.easeTo({ center: [p[1], p[0]], duration: 280 });
-  else map.jumpTo({ center: [p[1], p[0]] });
-}
-
-function updateHUD() {
+function updateHUDAt(t) {
   if (!currentPts.length) return;
-  const i = Math.min(idx, currentPts.length - 1);
+  const s = sampleAt(t);
+  const i = Math.min(Math.max(0, Math.round(t)), currentPts.length - 1);
   const p = currentPts[i];
-  const spd = mphFrom(getSpeed(i));
-  const along = pathCum[i] || 0;
+  const spd = mphFrom(getSpeed(Math.max(1, Math.ceil(t))));
+  const alongBase = pathCum[s.i] || 0;
+  let along = alongBase;
+  if (s.f > 0 && s.i < currentPts.length - 1) {
+    along += haversine(currentPts[s.i][0], currentPts[s.i][1], s.lat, s.lon);
+  }
   const total = pathCum[pathCum.length - 1] || 0;
-  const pct = currentPts.length > 1 ? Math.round((i / (currentPts.length - 1)) * 100) : 100;
+  const pct = currentPts.length > 1 ? Math.round((t / (currentPts.length - 1)) * 100) : 100;
 
   $("h-time").textContent = fmtTime(p[2]);
-  $("h-speed").textContent = spd.toFixed(1) + " mph";
-  $("h-prog").textContent = (i + 1) + " / " + currentPts.length + " · " + pct + "%";
-  $("h-along").textContent = fmtDist(along) + (total ? " / " + fmtDist(total) : "");
-  $("h-coords").textContent = p[0].toFixed(5) + ", " + p[1].toFixed(5);
+  $("h-speed").textContent = spd < 0.05 ? "—" : spd.toFixed(1) + " mph";
+  $("h-prog").textContent = pct + "%";
+  $("h-along").textContent = fmtDist(along) + (total ? " of " + fmtDist(total) : "");
 
-  $("progress").value = i;
+  $("progress").value = t;
   $("t-cur").textContent = fmtDur(clipClock(currentPts, i));
+  idx = i;
 }
 
-/* ——— Playback ——— */
+/* ——— Playback (smooth interpolated) ——— */
 function setPlayingUI(on) {
   playing = on;
   $("btn-play").classList.toggle("playing", on);
@@ -1053,57 +1124,99 @@ function setPlayingUI(on) {
   $("icon-pause").style.display = on ? "block" : "none";
   $("playing-lab").classList.toggle("on", on);
   $("btn-play").setAttribute("aria-label", on ? "Pause" : "Play");
-  if (playMarker) {
-    playMarker.getElement().classList.toggle("live", on);
-  }
+  setEndpointVisibility(!on);
+  if (on) clearPingMarker();
 }
 
 function stopPlayback() {
-  clearTimeout(timer);
-  timer = null;
+  if (rafId) cancelAnimationFrame(rafId);
+  rafId = null;
   setPlayingUI(false);
+}
+
+function segmentDurationMs(i) {
+  const speed = parseFloat($("speed").value) || 1;
+  if (paceActual && currentPts[i + 1]) {
+    const sec = (new Date(currentPts[i + 1][2]) - new Date(currentPts[i][2])) / 1000;
+    // Cap absurd gaps so replay stays watchable; still proportional
+    return Math.max(180, Math.min(2200, (sec * 1000) / speed));
+  }
+  // Fixed: ~700ms per hop at 1× — smooth glide, not choppy jumps
+  return Math.max(160, 700 / speed);
 }
 
 function togglePlay() {
   if (!currentPts.length) return;
   if (playing) { stopPlayback(); return; }
-  if (idx >= currentPts.length - 1) idx = 0;
+  if (playT >= currentPts.length - 1) playT = 0;
+  clearPingMarker();
   setPlayingUI(true);
-  step();
+  runSmoothPlay();
 }
 
-function step() {
-  if (!playing || !currentPts.length) return;
-  centerOn(idx, true);
-  updateTrail(idx);
-  updateHUD();
-
-  if (idx >= currentPts.length - 1) {
-    stopPlayback();
+function runSmoothPlay() {
+  if (!playing || currentPts.length < 2) {
+    if (playing && currentPts.length === 1) {
+      const p = currentPts[0];
+      setPlayheadLatLon(p[0], p[1], true);
+      updateTrailAt(0);
+      updateHUDAt(0);
+      stopPlayback();
+    }
     return;
   }
 
-  const speed = parseFloat($("speed").value) || 1;
-  let delay;
-  if (paceActual) {
-    const sec = (new Date(currentPts[idx + 1][2]) - new Date(currentPts[idx][2])) / 1000;
-    delay = Math.max(40, (sec * 1000) / speed);
-  } else {
-    delay = Math.max(40, 320 / speed);
-  }
-  idx++;
-  timer = setTimeout(step, delay);
+  const maxT = currentPts.length - 1;
+  let segI = Math.min(Math.floor(playT), maxT - 1);
+  let segStart = performance.now();
+  let segFrom = playT;
+  let segTo = Math.min(segI + 1, maxT);
+  // If mid-segment, finish remaining fraction with proportional time
+  let segDur = segmentDurationMs(segI) * Math.max(0.05, segTo - segFrom);
+
+  const tick = (now) => {
+    if (!playing) return;
+    const u = Math.min(1, (now - segStart) / segDur);
+    // ease-in-out for cleaner motion
+    const e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+    playT = lerp(segFrom, segTo, e);
+    const s = sampleAt(playT);
+    setPlayheadLatLon(s.lat, s.lon, true);
+    updateTrailAt(playT);
+    updateHUDAt(playT);
+
+    if (u >= 1) {
+      playT = segTo;
+      if (playT >= maxT - 0.001) {
+        playT = maxT;
+        updateTrailAt(playT);
+        updateHUDAt(playT);
+        stopPlayback();
+        return;
+      }
+      segI = Math.floor(playT);
+      segFrom = playT;
+      segTo = Math.min(segI + 1, maxT);
+      segDur = segmentDurationMs(segI);
+      segStart = now;
+    }
+    rafId = requestAnimationFrame(tick);
+  };
+  rafId = requestAnimationFrame(tick);
 }
 
-function seekTo(i) {
-  idx = Math.max(0, Math.min(i, currentPts.length - 1));
-  centerOn(idx, false);
-  updateTrail(idx);
-  updateHUD();
+function seekTo(t) {
+  const maxT = Math.max(0, currentPts.length - 1);
+  playT = Math.max(0, Math.min(Number(t) || 0, maxT));
+  const s = sampleAt(playT);
+  setPlayheadLatLon(s.lat, s.lon, false);
+  updateTrailAt(playT);
+  updateHUDAt(playT);
 }
 
 /* ——— Last ping ——— */
 function showLastPing() {
+  if (playing) stopPlayback();
   const src = clips.length ? clips : filtered;
   if (!src.length) return;
   const last = src[src.length - 1];
@@ -1114,7 +1227,7 @@ function showLastPing() {
     currentPts = pts;
     initMap();
   }
-  if (pingMarker) pingMarker.remove();
+  clearPingMarker();
   const el = document.createElement("div");
   el.className = "ping-dot";
   const ageSec = Math.round((Date.now() - new Date(p[2]).getTime()) / 1000);
@@ -1141,8 +1254,8 @@ $("btn-play").onclick = togglePlay;
 $("progress").oninput = (e) => {
   const was = playing;
   stopPlayback();
-  seekTo(parseInt(e.target.value, 10));
-  if (was) { setPlayingUI(true); step(); }
+  seekTo(parseFloat(e.target.value));
+  if (was) { setPlayingUI(true); runSmoothPlay(); }
 };
 $("speed").oninput = (e) => { $("speedval").textContent = e.target.value + "×"; };
 $("filter").oninput = applyFilter;
@@ -1151,6 +1264,7 @@ $("mode-motion").onclick = async () => {
   if (!showAll) return;
   showAll = false;
   lastDataSignature = "";
+  expandedDays = null;
   $("mode-motion").classList.add("on");
   $("mode-all").classList.remove("on");
   await loadClips({ selectLatest: true });
@@ -1159,6 +1273,7 @@ $("mode-all").onclick = async () => {
   if (showAll) return;
   showAll = true;
   lastDataSignature = "";
+  expandedDays = null;
   $("mode-all").classList.add("on");
   $("mode-motion").classList.remove("on");
   await loadClips({ selectLatest: true });
