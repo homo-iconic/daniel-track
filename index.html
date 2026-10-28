@@ -591,8 +591,8 @@ button:disabled { opacity: 0.35; pointer-events: none; }
       </div>
       <div class="speed-wrap">
         <span>Speed</span>
-        <input type="range" id="speed" min="0.25" max="8" step="0.25" value="0.5">
-        <span id="speedval">0.5×</span>
+        <input type="range" id="speed" min="0.25" max="8" step="0.25" value="0.35">
+        <span id="speedval">0.35×</span>
       </div>
       <div class="hint" id="pace-hint">Default 0.5× is a slow, easy-to-follow glide. 1× is faster review. Scrubber always matches clip position.</div>
     </div>
@@ -975,6 +975,9 @@ function setMapStyle(sat) {
   if (!map) return;
   map.setLayoutProperty("sat", "visibility", sat ? "visible" : "none");
   map.setLayoutProperty("street", "visibility", sat ? "none" : "visible");
+  // Road/place name overlays only needed on satellite (street map already labeled)
+  if (map.getLayer("roads")) map.setLayoutProperty("roads", "visibility", sat ? "visible" : "none");
+  if (map.getLayer("places")) map.setLayoutProperty("places", "visibility", sat ? "visible" : "none");
   $("map-sat").classList.toggle("on", sat);
   $("map-street").classList.toggle("on", !sat);
 }
@@ -1184,7 +1187,7 @@ function segmentDurationMs(i) {
   // 1× ≈ 2s per hop; default 0.5× ≈ 4s so the thumb sits below 1×.
   // Scrubber still tracks true position along the clip.
   const speed = parseFloat($("speed").value) || 0.5;
-  const BASE_MS = 2000;
+  const BASE_MS = 3500;
   if (paceActual && currentPts[i + 1]) {
     const sec = (new Date(currentPts[i + 1][2]) - new Date(currentPts[i][2])) / 1000;
     return Math.max((BASE_MS * 0.45) / speed, Math.min(8000, (sec * 1000) / speed));
